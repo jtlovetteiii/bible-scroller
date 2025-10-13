@@ -20,6 +20,7 @@ const passages = [
 
 let currentIndex = 0;
 let isPartiallyScrolled = false; // Track if we're mid-passage
+let isBlanked = false; // Track if content is blanked (bookmark mode)
 
 // Initialize the scroller
 function init() {
@@ -68,6 +69,9 @@ function handleKeyPress(event) {
     } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         navigatePrevious();
+    } else if (event.key === 'b' || event.key === 'B') {
+        event.preventDefault();
+        toggleBlank();
     }
 }
 
@@ -217,6 +221,24 @@ function showStickyReference() {
 function hideStickyReference() {
     const stickyRef = document.getElementById('sticky-reference');
     stickyRef.classList.add('hidden');
+}
+
+// Toggle blank mode (bookmark state)
+function toggleBlank() {
+    isBlanked = !isBlanked;
+
+    const versesContainer = document.getElementById('verses-container');
+    const stickyRef = document.getElementById('sticky-reference');
+
+    if (isBlanked) {
+        // Fade out content
+        versesContainer.classList.add('blanked');
+        stickyRef.classList.add('blanked');
+    } else {
+        // Fade back in
+        versesContainer.classList.remove('blanked');
+        stickyRef.classList.remove('blanked');
+    }
 }
 
 // Initialize when DOM is ready
