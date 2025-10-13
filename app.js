@@ -144,6 +144,9 @@ function partialScrollDown() {
         top: scrollAmount,
         behavior: 'smooth'
     });
+
+    // Show sticky reference when scrolling within passage
+    showStickyReference();
 }
 
 // Partial scroll up within current passage
@@ -155,6 +158,18 @@ function partialScrollUp() {
         top: -scrollAmount,
         behavior: 'smooth'
     });
+
+    // Check if we should hide sticky reference after scrolling back up
+    setTimeout(() => {
+        const currentVerse = document.getElementById(`verse-${currentIndex}`);
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const verseRect = currentVerse.getBoundingClientRect();
+
+        // If we're back at the top of the verse, hide sticky reference
+        if (Math.abs(verseRect.top - containerRect.top) < 100) {
+            hideStickyReference();
+        }
+    }, 600);
 }
 
 // Scroll to a specific verse (between-passage transition)
@@ -184,6 +199,24 @@ function updateVerseStates() {
         }
         // Past verses (index < currentIndex) have no special class (default dimmed state)
     });
+
+    // Hide sticky reference when transitioning between verses
+    hideStickyReference();
+}
+
+// Show sticky reference header
+function showStickyReference() {
+    const stickyRef = document.getElementById('sticky-reference');
+    const stickyText = document.getElementById('sticky-reference-text');
+
+    stickyText.textContent = passages[currentIndex].ref;
+    stickyRef.classList.remove('hidden');
+}
+
+// Hide sticky reference header
+function hideStickyReference() {
+    const stickyRef = document.getElementById('sticky-reference');
+    stickyRef.classList.add('hidden');
 }
 
 // Initialize when DOM is ready

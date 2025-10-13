@@ -67,6 +67,39 @@ body {
     text-align: justify;
 }
 
+/* Sticky reference header */
+#sticky-reference {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(26, 26, 26, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 1.5rem 15vw;
+    z-index: 1000;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transform: translateY(-100%);
+    transition: transform 0.4s ease-in-out;
+}
+
+#sticky-reference:not(.hidden) {
+    transform: translateY(0);
+}
+
+#sticky-reference.hidden {
+    transform: translateY(-100%);
+}
+
+#sticky-reference-text {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #aaa;
+    letter-spacing: 0.05em;
+    display: block;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
 /* Controls hint */
 #controls-hint {
     position: fixed;
