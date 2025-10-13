@@ -19,6 +19,7 @@ const passages = [
 ];
 
 let currentIndex = 0;
+let isPartiallyScrolled = false; // Track if we're mid-passage
 
 // Initialize the scroller
 function init() {
@@ -70,25 +71,93 @@ function handleKeyPress(event) {
     }
 }
 
-// Navigate to next verse
+// Navigate to next verse or scroll within current passage
 function navigateNext() {
-    if (currentIndex < passages.length - 1) {
-        currentIndex++;
-        scrollToVerse(currentIndex);
-        updateVerseStates();
+    const currentVerse = document.getElementById(`verse-${currentIndex}`);
+    const scrollContainer = document.getElementById('scroller-container');
+
+    if (!currentVerse) return;
+
+    // Check if there's more content below the viewport in the current verse
+    const verseRect = currentVerse.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const verseBottom = verseRect.bottom;
+    const viewportBottom = containerRect.bottom;
+
+    // If verse extends below viewport (with some buffer), do a partial scroll
+    if (verseBottom > viewportBottom + 50) {
+        // Partial scroll: move down 75% of viewport height
+        partialScrollDown();
+        isPartiallyScrolled = true;
+    } else {
+        // Full transition to next verse
+        if (currentIndex < passages.length - 1) {
+            currentIndex++;
+            isPartiallyScrolled = false;
+            scrollToVerse(currentIndex);
+            updateVerseStates();
+        }
     }
 }
 
-// Navigate to previous verse
+// Navigate to previous verse or scroll back within current passage
 function navigatePrevious() {
-    if (currentIndex > 0) {
-        currentIndex--;
-        scrollToVerse(currentIndex);
-        updateVerseStates();
+    const currentVerse = document.getElementById(`verse-${currentIndex}`);
+    const scrollContainer = document.getElementById('scroller-container');
+
+    if (!currentVerse) return;
+
+    // Check if the verse top is above the viewport
+    const verseRect = currentVerse.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const verseTop = verseRect.top;
+    const viewportTop = containerRect.top;
+
+    // If we're partially scrolled or verse extends above viewport, scroll back up
+    if (isPartiallyScrolled || verseTop < viewportTop - 50) {
+        partialScrollUp();
+
+        // Check if we're now back at the top of the current verse
+        setTimeout(() => {
+            const updatedRect = currentVerse.getBoundingClientRect();
+            if (Math.abs(updatedRect.top - containerRect.top) < 100) {
+                isPartiallyScrolled = false;
+            }
+        }, 600);
+    } else {
+        // Full transition to previous verse
+        if (currentIndex > 0) {
+            currentIndex--;
+            isPartiallyScrolled = false;
+            scrollToVerse(currentIndex);
+            updateVerseStates();
+        }
     }
 }
 
-// Scroll to a specific verse
+// Partial scroll down within current passage (slower, keeps context)
+function partialScrollDown() {
+    const scrollContainer = document.getElementById('scroller-container');
+    const scrollAmount = window.innerHeight * 0.75; // 75% of viewport
+
+    scrollContainer.scrollBy({
+        top: scrollAmount,
+        behavior: 'smooth'
+    });
+}
+
+// Partial scroll up within current passage
+function partialScrollUp() {
+    const scrollContainer = document.getElementById('scroller-container');
+    const scrollAmount = window.innerHeight * 0.75; // 75% of viewport
+
+    scrollContainer.scrollBy({
+        top: -scrollAmount,
+        behavior: 'smooth'
+    });
+}
+
+// Scroll to a specific verse (between-passage transition)
 function scrollToVerse(index) {
     const verse = document.getElementById(`verse-${index}`);
     if (verse) {
