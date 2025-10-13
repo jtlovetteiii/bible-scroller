@@ -21,6 +21,7 @@ const passages = [
 let currentIndex = 0;
 let isPartiallyScrolled = false; // Track if we're mid-passage
 let isBlanked = false; // Track if content is blanked (bookmark mode)
+let stickyWasVisible = false; // Track sticky reference state before blanking
 
 // Initialize the scroller
 function init() {
@@ -231,13 +232,22 @@ function toggleBlank() {
     const stickyRef = document.getElementById('sticky-reference');
 
     if (isBlanked) {
-        // Fade out content
+        // Remember if sticky reference was visible before blanking
+        stickyWasVisible = !stickyRef.classList.contains('hidden');
+
+        // Fade out content and hide sticky reference
         versesContainer.classList.add('blanked');
-        stickyRef.classList.add('blanked');
+        if (stickyWasVisible) {
+            stickyRef.classList.add('hidden');
+        }
     } else {
         // Fade back in
         versesContainer.classList.remove('blanked');
-        stickyRef.classList.remove('blanked');
+
+        // Restore sticky reference if it was visible before blanking
+        if (stickyWasVisible) {
+            stickyRef.classList.remove('hidden');
+        }
     }
 }
 
