@@ -72,6 +72,28 @@ body {
     text-align: justify;
 }
 
+/* Scroll gradient overlay */
+#scroll-gradient {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 240px;
+    background: linear-gradient(to bottom, rgba(26, 26, 26, 1), rgba(26, 26, 26, 0));
+    z-index: 500;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+#scroll-gradient:not(.hidden) {
+    opacity: 1;
+}
+
+#scroll-gradient.hidden {
+    opacity: 0;
+}
+
 /* Sticky reference header */
 #sticky-reference {
     position: fixed;

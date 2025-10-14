@@ -12,17 +12,22 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 
 ---
 
-## 🎯 Key Features (Planned)
+## 🎯 Key Features
 
-| Feature | Description |
-|----------|-------------|
-| **Predefined verse list** | Passages are defined in a simple JSON or YAML file for each sermon. |
-| **Smooth scroll navigation** | Each key press scrolls smoothly to the next passage segment. |
-| **Large, legible typography** | Optimized for readability from the back of a sanctuary. |
-| **Highlighting / dimming** | Current verses subtly highlighted; previous verses fade slightly. |
-| **Dark & light modes** | Toggleable presentation styles for morning/evening services. |
-| **Offline-ready** | Fully static — can run from a USB drive or local machine without an internet connection. |
-| **Optional API integration** | Future versions may fetch Scripture text dynamically (e.g., via a Bible API) if licensing allows. |
+| Feature | Status | Description |
+|----------|--------|-------------|
+| **Smooth scroll navigation** | ✅ Implemented | Each key press scrolls smoothly to the next portion of text — either within a passage or to the next verse section. |
+| **Intelligent scrolling** | ✅ Implemented | Automatically detects when passages are too long for the viewport and scrolls progressively through them. |
+| **Sticky reference header** | ✅ Implemented | Verse reference stays visible at the top when scrolling within a passage, providing context. |
+| **Gradient fade effect** | ✅ Implemented | Text naturally fades as it scrolls toward the top, guiding eyes to new content. |
+| **Bookmark mode** | ✅ Implemented | Press **B** to gracefully fade content for sermon pauses (like placing a bookmark in a Bible). |
+| **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
+| **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
+| **Dark mode** | ✅ Implemented | High-contrast dark theme optimized for low-light sanctuaries. |
+| **Offline-ready** | ✅ Implemented | Fully static — runs from filesystem, USB drive, or any web server without internet. |
+| **JSON data source** | 🔄 Planned | Load verses dynamically from a `passages.json` file (currently hardcoded samples). |
+| **Light mode** | 🔄 Planned | Toggleable light theme for daytime services. |
+| **Remote control** | 🔄 Planned | Optional control via local server or web socket. |
 
 ---
 
@@ -58,34 +63,65 @@ scripture-scroller/
 ]
 ```
 
-## 🖥️ Basic Usage
+## 🖥️ Usage
+
+### Getting Started
 
 1. Clone or download the repository.
-2. Open index.html in a modern web browser (Chrome, Edge, or Firefox recommended).
-3. Press Space or ↓ Arrow to scroll to the next verse section.
-4. Press ↑ Arrow to scroll back up.
-5. Customize passages by editing passages.json.
+2. Open `index.html` in a modern web browser (Chrome, Edge, or Firefox recommended).
+3. The demo loads with sample passages from John 1:1–10.
+
+### Keyboard Controls
+
+| Key | Action |
+|-----|--------|
+| **Space** or **↓** | Scroll forward (within passage or to next verse) |
+| **↑** | Scroll backward (within passage or to previous verse) |
+| **B** | Toggle bookmark mode (fade content for sermon pauses) |
+
+### Editing Passages
+
+Currently, passages are hardcoded in `app.js` (lines 2-19). To customize:
+
+1. Open `app.js` in a text editor
+2. Modify the `passages` array:
+   ```javascript
+   const passages = [
+       {
+           ref: "Your Reference",
+           text: "Your Scripture text here..."
+       }
+   ];
+   ```
+3. Save and refresh the browser
+
+**Note:** Dynamic JSON loading is planned for v0.2.
 
 ## 🔧 Development Roadmap
 
-| Milestone                         | Description                                                     |
-| --------------------------------- | --------------------------------------------------------------- |
-| **v0.1 – Prototype**              | Static HTML demo with sample verses and smooth scroll behavior. |
-| **v0.2 – JSON Loader**            | Load verses dynamically from a `passages.json` file.            |
-| **v0.3 – Highlighting & Dimming** | Add fade/highlight effects on scroll.                           |
-| **v0.4 – Configurable Themes**    | Light/dark mode and typography controls.                        |
-| **v0.5 – Presentation Controls**  | Optional remote control via local server or web socket.         |
-| **v1.0 – Release**                | Polished and production-ready for live service projection.      |
+| Milestone | Status | Description |
+|-----------|--------|-------------|
+| **v0.1 – Prototype** | ✅ **Complete** | Working demo with intelligent smooth scrolling, sticky headers, gradient fade, and bookmark mode. |
+| **v0.2 – JSON Loader** | 🔄 Next | Load verses dynamically from a `passages.json` file. |
+| **v0.3 – Configurable Themes** | 🔄 Planned | Add light mode and typography controls. |
+| **v0.4 – Enhanced Navigation** | 🔄 Planned | Jump to specific passages, search, and keyboard shortcuts reference. |
+| **v0.5 – Presentation Controls** | 🔄 Planned | Optional remote control via local server or web socket. |
+| **v1.0 – Release** | 🔄 Planned | Polished and production-ready for live service projection. |
 
-## 🧰 Suggested Stack
+## 🧰 Technical Stack
 
-- Frontend: HTML5 + CSS3 + Vanilla JavaScript
-- Animations: scrollIntoView({ behavior: "smooth" }) or CSS transitions
-- Data Source: Local passages.json file
-- Optional Enhancements:
-  - WebSocket server for remote control
-  - Bible API integration
-  - Markdown or YAML input parser
+**Current Implementation:**
+- **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools or dependencies)
+- **Animations:** Native `scrollIntoView()` and `scrollBy()` with CSS transitions
+- **Data Source:** Hardcoded JavaScript array (JSON loader coming in v0.2)
+- **Typography:** Georgia serif, 4rem size, justified text
+- **Theme:** Dark mode with high contrast for projection
+
+**Planned Enhancements:**
+- Dynamic JSON/YAML passage loading
+- Light/dark theme toggle
+- WebSocket server for remote control
+- Optional Bible API integration
 
 ## 🕊️ Design Principles
 
@@ -96,7 +132,20 @@ scripture-scroller/
 
 ## 💡 Example Use Case
 
-- The pastor plans to teach through Romans 8:1–17.
-- You split the passage into 5–6 natural sections (roughly 3–4 verses each).
-- During the sermon, the operator taps Space as the pastor moves through the text.
-- The display scrolls gently, showing the next section without abrupt transitions.
+**Scenario:** The pastor plans to teach through Romans 8:1–17 during Sunday morning worship.
+
+**Setup:**
+1. Split the passage into 5–6 natural sections (roughly 3–4 verses each)
+2. Add each section to the `passages` array in `app.js`
+3. Open `index.html` on the projection computer
+4. Press **F11** for fullscreen mode
+
+**During the Sermon:**
+- As the pastor reads, the operator presses **Space** to advance
+- If a section is long, the app automatically scrolls through it progressively
+- The verse reference stays visible at the top for context
+- Previous text remains visible but dimmed, maintaining reading continuity
+- When the pastor pauses to explain, press **B** to fade the text reverently
+- Press **B** again to restore the text and continue reading
+
+**Result:** The congregation experiences Scripture as a flowing, meditative journey rather than disconnected slide fragments.

@@ -143,36 +143,38 @@ function navigatePrevious() {
 // Partial scroll down within current passage (slower, keeps context)
 function partialScrollDown() {
     const scrollContainer = document.getElementById('scroller-container');
-    const scrollAmount = window.innerHeight * 0.75; // 75% of viewport
+    const scrollAmount = window.innerHeight * 0.6; // 75% of viewport
 
     scrollContainer.scrollBy({
         top: scrollAmount,
         behavior: 'smooth'
     });
 
-    // Show sticky reference when scrolling within passage
+    // Show sticky reference and gradient when scrolling within passage
     showStickyReference();
+    showScrollGradient();
 }
 
 // Partial scroll up within current passage
 function partialScrollUp() {
     const scrollContainer = document.getElementById('scroller-container');
-    const scrollAmount = window.innerHeight * 0.75; // 75% of viewport
+    const scrollAmount = window.innerHeight * 0.6; // 75% of viewport
 
     scrollContainer.scrollBy({
         top: -scrollAmount,
         behavior: 'smooth'
     });
 
-    // Check if we should hide sticky reference after scrolling back up
+    // Check if we should hide sticky reference and gradient after scrolling back up
     setTimeout(() => {
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
         const containerRect = scrollContainer.getBoundingClientRect();
         const verseRect = currentVerse.getBoundingClientRect();
 
-        // If we're back at the top of the verse, hide sticky reference
+        // If we're back at the top of the verse, hide sticky reference and gradient
         if (Math.abs(verseRect.top - containerRect.top) < 100) {
             hideStickyReference();
+            hideScrollGradient();
         }
     }, 600);
 }
@@ -205,8 +207,9 @@ function updateVerseStates() {
         // Past verses (index < currentIndex) have no special class (default dimmed state)
     });
 
-    // Hide sticky reference when transitioning between verses
+    // Hide sticky reference and gradient when transitioning between verses
     hideStickyReference();
+    hideScrollGradient();
 }
 
 // Show sticky reference header
@@ -222,6 +225,18 @@ function showStickyReference() {
 function hideStickyReference() {
     const stickyRef = document.getElementById('sticky-reference');
     stickyRef.classList.add('hidden');
+}
+
+// Show scroll gradient overlay
+function showScrollGradient() {
+    const gradient = document.getElementById('scroll-gradient');
+    gradient.classList.remove('hidden');
+}
+
+// Hide scroll gradient overlay
+function hideScrollGradient() {
+    const gradient = document.getElementById('scroll-gradient');
+    gradient.classList.add('hidden');
 }
 
 // Toggle blank mode (bookmark state)
