@@ -23,6 +23,7 @@ let isPartiallyScrolled = false; // Track if we're mid-passage
 let isBlanked = false; // Track if content is blanked (bookmark mode)
 let stickyWasVisible = false; // Track sticky reference state before blanking
 let isLightTheme = false; // Track current theme state
+let currentMode = 'normal'; // Track current mode: 'normal', 'edit', 'style'
 
 // Initialize the scroller
 function init() {
@@ -46,7 +47,8 @@ function init() {
 
         const text = document.createElement('div');
         text.className = 'verse-text';
-        text.textContent = passage.text;
+        // Use innerHTML to support styled content (like words-of-christ spans)
+        text.innerHTML = passage.text;
 
         section.appendChild(ref);
         section.appendChild(text);
@@ -65,18 +67,53 @@ function init() {
 
 // Handle keyboard navigation
 function handleKeyPress(event) {
-    if (event.key === ' ' || event.key === 'ArrowDown') {
+    // Escape key exits edit or style mode
+    if (event.key === 'Escape') {
+        if (currentMode === 'edit') {
+            event.preventDefault();
+            toggleEditMode();
+            return;
+        } else if (currentMode === 'style') {
+            event.preventDefault();
+            toggleStyleMode();
+            return;
+        }
+    }
+
+    // Mode switching keys work only in normal mode
+    if (currentMode === 'normal') {
+        if (event.key === 'e' || event.key === 'E') {
+            event.preventDefault();
+            toggleEditMode();
+            return;
+        } else if (event.key === 's' || event.key === 'S') {
+            event.preventDefault();
+            toggleStyleMode();
+            return;
+        }
+    }
+
+    // Navigation keys only work in normal mode
+    if (currentMode === 'normal') {
+        if (event.key === ' ' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            navigateNext();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            navigatePrevious();
+        } else if (event.key === 'b' || event.key === 'B') {
+            event.preventDefault();
+            toggleBlank();
+        } else if (event.key === 't' || event.key === 'T') {
+            event.preventDefault();
+            toggleTheme();
+        }
+    }
+
+    // In style mode, handle text selection with Enter key
+    if (currentMode === 'style' && event.key === 'Enter') {
         event.preventDefault();
-        navigateNext();
-    } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        navigatePrevious();
-    } else if (event.key === 'b' || event.key === 'B') {
-        event.preventDefault();
-        toggleBlank();
-    } else if (event.key === 't' || event.key === 'T') {
-        event.preventDefault();
-        toggleTheme();
+        applyChristWordsStyle();
     }
 }
 
@@ -278,6 +315,116 @@ function toggleTheme() {
         document.body.classList.add('light-theme');
     } else {
         document.body.classList.remove('light-theme');
+    }
+}
+
+// Update mode indicator UI
+function updateModeIndicator() {
+    const indicator = document.getElementById('mode-indicator');
+    const indicatorText = document.getElementById('mode-indicator-text');
+
+    if (currentMode === 'normal') {
+        indicator.classList.add('hidden');
+        indicator.classList.remove('edit-mode', 'style-mode');
+    } else if (currentMode === 'edit') {
+        indicator.classList.remove('hidden', 'style-mode');
+        indicator.classList.add('edit-mode');
+        indicatorText.textContent = 'EDIT MODE';
+    } else if (currentMode === 'style') {
+        indicator.classList.remove('hidden', 'edit-mode');
+        indicator.classList.add('style-mode');
+        indicatorText.textContent = 'STYLE MODE - Select text and press Enter';
+    }
+}
+
+// Toggle Edit Mode
+function toggleEditMode() {
+    if (currentMode === 'edit') {
+        // Exit edit mode
+        currentMode = 'normal';
+        disableEditing();
+    } else {
+        // Enter edit mode
+        currentMode = 'edit';
+        enableEditing();
+    }
+    updateModeIndicator();
+}
+
+// Toggle Style Mode
+function toggleStyleMode() {
+    if (currentMode === 'style') {
+        // Exit style mode
+        currentMode = 'normal';
+    } else {
+        // Enter style mode
+        currentMode = 'style';
+    }
+    updateModeIndicator();
+}
+
+// Enable editing on all verse text elements
+function enableEditing() {
+    const verseTexts = document.querySelectorAll('.verse-text');
+    verseTexts.forEach(text => {
+        text.contentEditable = 'true';
+        text.style.outline = '2px dashed rgba(100, 150, 255, 0.5)';
+    });
+}
+
+// Disable editing and save changes back to passages array
+function disableEditing() {
+    const verseTexts = document.querySelectorAll('.verse-text');
+    verseTexts.forEach((text, index) => {
+        text.contentEditable = 'false';
+        text.style.outline = 'none';
+
+        // Save the edited HTML content back to the passages array
+        passages[index].text = text.innerHTML;
+    });
+}
+
+// Apply "words of Christ" styling to selected text
+function applyChristWordsStyle() {
+    const selection = window.getSelection();
+
+    if (!selection.rangeCount || selection.isCollapsed) {
+        return; // No text selected
+    }
+
+    const range = selection.getRangeAt(0);
+
+    // Check if selection is within a verse-text element
+    let container = range.commonAncestorContainer;
+    if (container.nodeType === Node.TEXT_NODE) {
+        container = container.parentNode;
+    }
+
+    const verseText = container.closest('.verse-text');
+    if (!verseText) {
+        return; // Selection not in a verse
+    }
+
+    // Wrap selected text in a span with the words-of-christ class
+    const span = document.createElement('span');
+    span.className = 'words-of-christ';
+
+    try {
+        range.surroundContents(span);
+    } catch (e) {
+        // If surroundContents fails (complex selection), use extractContents
+        const contents = range.extractContents();
+        span.appendChild(contents);
+        range.insertNode(span);
+    }
+
+    // Clear selection
+    selection.removeAllRanges();
+
+    // Save changes to passages array
+    const verseIndex = Array.from(document.querySelectorAll('.verse-text')).indexOf(verseText);
+    if (verseIndex !== -1) {
+        passages[verseIndex].text = verseText.innerHTML;
     }
 }
 
