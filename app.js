@@ -22,6 +22,7 @@ let currentIndex = 0;
 let isPartiallyScrolled = false; // Track if we're mid-passage
 let isBlanked = false; // Track if content is blanked (bookmark mode)
 let stickyWasVisible = false; // Track sticky reference state before blanking
+let isLightTheme = false; // Track current theme state
 
 // Initialize the scroller
 function init() {
@@ -73,6 +74,9 @@ function handleKeyPress(event) {
     } else if (event.key === 'b' || event.key === 'B') {
         event.preventDefault();
         toggleBlank();
+    } else if (event.key === 't' || event.key === 'T') {
+        event.preventDefault();
+        toggleTheme();
     }
 }
 
@@ -263,6 +267,17 @@ function toggleBlank() {
         if (stickyWasVisible) {
             stickyRef.classList.remove('hidden');
         }
+    }
+}
+
+// Toggle theme (light/dark)
+function toggleTheme() {
+    isLightTheme = !isLightTheme;
+
+    if (isLightTheme) {
+        document.body.classList.add('light-theme');
+    } else {
+        document.body.classList.remove('light-theme');
     }
 }
 
