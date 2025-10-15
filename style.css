@@ -37,14 +37,6 @@ body.light-theme {
     transition: opacity 1.2s ease-in-out;
 }
 
-/* Light theme: Bible page effect */
-body.light-theme #verses-container {
-    background-color: #ffffff; /* Pure white paper */
-    padding: 6vh 5vw;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    border-radius: 2px;
-}
-
 #verses-container.blanked {
     opacity: 0.05;
 }
