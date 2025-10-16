@@ -94,6 +94,41 @@ body.light-theme .verse-section.active .verse-ref {
     color: #dc143c; /* Crimson red */
 }
 
+/* Edit mode buttons */
+.edit-buttons {
+    display: inline-flex;
+    gap: 0.5rem;
+    margin-left: 1.5rem;
+    vertical-align: middle;
+}
+
+.edit-btn {
+    background-color: rgba(100, 150, 255, 0.2);
+    border: 1px solid rgba(100, 150, 255, 0.4);
+    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: inherit;
+}
+
+.edit-btn:hover {
+    background-color: rgba(100, 150, 255, 0.4);
+    border-color: rgba(100, 150, 255, 0.6);
+    transform: scale(1.1);
+}
+
+.edit-btn.delete {
+    background-color: rgba(255, 100, 100, 0.2);
+    border-color: rgba(255, 100, 100, 0.4);
+}
+
+.edit-btn.delete:hover {
+    background-color: rgba(255, 100, 100, 0.4);
+    border-color: rgba(255, 100, 100, 0.6);
+}
+
 /* Scroll gradient overlay */
 #scroll-gradient {
     position: fixed;

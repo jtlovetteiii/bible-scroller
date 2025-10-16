@@ -25,9 +25,12 @@ let stickyWasVisible = false; // Track sticky reference state before blanking
 let isLightTheme = false; // Track current theme state
 let currentMode = 'normal'; // Track current mode: 'normal', 'edit', 'style'
 
-// Initialize the scroller
-function init() {
+// Render all verses to the DOM
+function renderVerses() {
     const container = document.getElementById('verses-container');
+
+    // Clear existing content
+    container.innerHTML = '';
 
     // Create verse sections
     passages.forEach((passage, index) => {
@@ -35,15 +38,16 @@ function init() {
         section.className = 'verse-section';
         section.id = `verse-${index}`;
 
-        if (index === 0) {
+        if (index === currentIndex) {
             section.classList.add('active');
-        } else {
+        } else if (index > currentIndex) {
             section.classList.add('upcoming');
         }
 
         const ref = document.createElement('div');
         ref.className = 'verse-ref';
         ref.textContent = passage.ref;
+        ref.dataset.index = index; // Store index for saving later
 
         const text = document.createElement('div');
         text.className = 'verse-text';
@@ -54,6 +58,17 @@ function init() {
         section.appendChild(text);
         container.appendChild(section);
     });
+
+    // If in edit mode, re-enable editing on new elements
+    if (currentMode === 'edit') {
+        enableEditing();
+    }
+}
+
+// Initialize the scroller
+function init() {
+    // Render initial verses
+    renderVerses();
 
     // Set up keyboard navigation
     document.addEventListener('keydown', handleKeyPress);
@@ -365,15 +380,74 @@ function toggleStyleMode() {
 
 // Enable editing on all verse text elements
 function enableEditing() {
+    // Make verse text editable
     const verseTexts = document.querySelectorAll('.verse-text');
     verseTexts.forEach(text => {
         text.contentEditable = 'true';
         text.style.outline = '2px dashed rgba(100, 150, 255, 0.5)';
     });
+
+    // Make verse references editable and add edit buttons
+    const verseRefs = document.querySelectorAll('.verse-ref');
+    verseRefs.forEach((ref, index) => {
+        ref.contentEditable = 'true';
+        ref.style.outline = '2px dashed rgba(100, 150, 255, 0.3)';
+
+        // Add edit buttons to each verse reference
+        // Don't add buttons if they already exist
+        if (ref.querySelector('.edit-buttons')) return;
+
+        const buttonContainer = document.createElement('span');
+        buttonContainer.className = 'edit-buttons';
+
+        // Move up button
+        const upBtn = document.createElement('button');
+        upBtn.className = 'edit-btn';
+        upBtn.textContent = '↑';
+        upBtn.title = 'Move passage up';
+        upBtn.onclick = () => movePassageUp(index);
+
+        // Move down button
+        const downBtn = document.createElement('button');
+        downBtn.className = 'edit-btn';
+        downBtn.textContent = '↓';
+        downBtn.title = 'Move passage down';
+        downBtn.onclick = () => movePassageDown(index);
+
+        // Insert above button
+        const insertAboveBtn = document.createElement('button');
+        insertAboveBtn.className = 'edit-btn';
+        insertAboveBtn.textContent = '⊕↑';
+        insertAboveBtn.title = 'Insert passage above';
+        insertAboveBtn.onclick = () => insertPassage(index, 'above');
+
+        // Insert below button
+        const insertBelowBtn = document.createElement('button');
+        insertBelowBtn.className = 'edit-btn';
+        insertBelowBtn.textContent = '⊕↓';
+        insertBelowBtn.title = 'Insert passage below';
+        insertBelowBtn.onclick = () => insertPassage(index, 'below');
+
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'edit-btn delete';
+        deleteBtn.textContent = '×';
+        deleteBtn.title = 'Delete passage';
+        deleteBtn.onclick = () => deletePassage(index);
+
+        buttonContainer.appendChild(upBtn);
+        buttonContainer.appendChild(downBtn);
+        buttonContainer.appendChild(insertAboveBtn);
+        buttonContainer.appendChild(insertBelowBtn);
+        buttonContainer.appendChild(deleteBtn);
+
+        ref.appendChild(buttonContainer);
+    });
 }
 
 // Disable editing and save changes back to passages array
 function disableEditing() {
+    // Save and disable verse text editing
     const verseTexts = document.querySelectorAll('.verse-text');
     verseTexts.forEach((text, index) => {
         text.contentEditable = 'false';
@@ -381,6 +455,25 @@ function disableEditing() {
 
         // Save the edited HTML content back to the passages array
         passages[index].text = text.innerHTML;
+    });
+
+    // Save and disable verse reference editing
+    const verseRefs = document.querySelectorAll('.verse-ref');
+    verseRefs.forEach((ref, index) => {
+        ref.contentEditable = 'false';
+        ref.style.outline = 'none';
+
+        // Extract text without buttons
+        const buttons = ref.querySelector('.edit-buttons');
+        const refText = buttons ? ref.childNodes[0].textContent : ref.textContent;
+
+        // Save the edited reference back to the passages array
+        passages[index].ref = refText.trim();
+
+        // Remove edit buttons
+        if (buttons) {
+            buttons.remove();
+        }
     });
 }
 
@@ -425,6 +518,79 @@ function applyChristWordsStyle() {
     const verseIndex = Array.from(document.querySelectorAll('.verse-text')).indexOf(verseText);
     if (verseIndex !== -1) {
         passages[verseIndex].text = verseText.innerHTML;
+    }
+}
+
+// Move passage up in the list
+function movePassageUp(index) {
+    if (index === 0) return; // Already at top
+
+    // Swap with previous passage
+    [passages[index - 1], passages[index]] = [passages[index], passages[index - 1]];
+
+    // Update currentIndex if needed
+    if (currentIndex === index) {
+        currentIndex--;
+    } else if (currentIndex === index - 1) {
+        currentIndex++;
+    }
+
+    renderVerses();
+}
+
+// Move passage down in the list
+function movePassageDown(index) {
+    if (index === passages.length - 1) return; // Already at bottom
+
+    // Swap with next passage
+    [passages[index], passages[index + 1]] = [passages[index + 1], passages[index]];
+
+    // Update currentIndex if needed
+    if (currentIndex === index) {
+        currentIndex++;
+    } else if (currentIndex === index + 1) {
+        currentIndex--;
+    }
+
+    renderVerses();
+}
+
+// Insert a new passage
+function insertPassage(index, position) {
+    const newPassage = {
+        ref: "Reference",
+        text: "Verse text here..."
+    };
+
+    const insertIndex = position === 'above' ? index : index + 1;
+    passages.splice(insertIndex, 0, newPassage);
+
+    // Update currentIndex if needed
+    if (currentIndex >= insertIndex) {
+        currentIndex++;
+    }
+
+    renderVerses();
+}
+
+// Delete a passage
+function deletePassage(index) {
+    if (passages.length === 1) {
+        alert("Cannot delete the last passage.");
+        return;
+    }
+
+    if (confirm("Are you sure you want to delete this passage?")) {
+        passages.splice(index, 1);
+
+        // Update currentIndex if needed
+        if (currentIndex >= passages.length) {
+            currentIndex = passages.length - 1;
+        } else if (currentIndex > index) {
+            currentIndex--;
+        }
+
+        renderVerses();
     }
 }
 
