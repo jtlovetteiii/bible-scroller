@@ -24,9 +24,11 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 | **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
 | **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
 | **Dark mode** | ✅ Implemented | High-contrast dark theme optimized for low-light sanctuaries. |
+| **Light mode** | ✅ Implemented | Clean paper-white theme for daytime services, toggled with **T** key. |
+| **In-app editing** | ✅ Implemented | Edit mode (**E** key) for text editing; Style mode (**S** key) for marking words of Christ in red. |
+| **Passage management** | ✅ Implemented | Add, remove, reorder passages directly in Edit mode with visual toolbar buttons. |
 | **Offline-ready** | ✅ Implemented | Fully static — runs from filesystem, USB drive, or any web server without internet. |
 | **JSON data source** | 🔄 Planned | Load verses dynamically from a `passages.json` file (currently hardcoded samples). |
-| **Light mode** | 🔄 Planned | Toggleable light theme for daytime services. |
 | **Remote control** | 🔄 Planned | Optional control via local server or web socket. |
 
 ---
@@ -73,37 +75,71 @@ scripture-scroller/
 
 ### Keyboard Controls
 
+#### Presentation Mode (default)
 | Key | Action |
 |-----|--------|
 | **Space** or **↓** | Scroll forward (within passage or to next verse) |
 | **↑** | Scroll backward (within passage or to previous verse) |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
+| **T** | Toggle light/dark theme |
+| **E** | Enter Edit mode |
+| **S** | Enter Style mode |
+
+#### Edit Mode (press **E** to enter, **Esc** to exit)
+| Action | Control |
+|--------|---------|
+| **Edit verse text** | Click into any verse text and edit directly |
+| **Edit verse reference** | Click into verse reference and edit directly |
+| **Move passage up** | Click **↑** button on verse reference |
+| **Move passage down** | Click **↓** button on verse reference |
+| **Insert passage above** | Click **⊕↑** button on verse reference |
+| **Insert passage below** | Click **⊕↓** button on verse reference |
+| **Delete passage** | Click **×** button on verse reference (with confirmation) |
+
+#### Style Mode (press **S** to enter, **Esc** to exit)
+| Key | Action |
+|-----|--------|
+| **Select text + Enter** | Mark selected text as "words of Christ" (displays in red) |
 
 ### Editing Passages
 
-Currently, passages are hardcoded in `app.js` (lines 2-19). To customize:
+**New in v0.2:** Passages can now be edited directly in the app!
 
-1. Open `app.js` in a text editor
-2. Modify the `passages` array:
-   ```javascript
-   const passages = [
-       {
-           ref: "Your Reference",
-           text: "Your Scripture text here..."
-       }
-   ];
-   ```
-3. Save and refresh the browser
+**Using In-App Editing (Recommended):**
+1. Press **E** to enter Edit mode
+2. Click into any verse reference or text to edit
+3. Use toolbar buttons to add, remove, or reorder passages:
+   - **↑↓** - Move passages up/down
+   - **⊕↑⊕↓** - Insert new passages above/below
+   - **×** - Delete passages
+4. Press **Esc** to save and return to presentation mode
 
-**Note:** Dynamic JSON loading is planned for v0.2.
+**Styling Words of Christ:**
+1. Press **S** to enter Style mode
+2. Select the text you want to mark as Jesus' words
+3. Press **Enter** to apply red styling
+4. Press **Esc** to exit Style mode
+
+**Manual Editing (Advanced):**
+Passages are stored in the `passages` array in `app.js` (lines 2-19). You can also edit this directly:
+```javascript
+const passages = [
+    {
+        ref: "Your Reference",
+        text: "Your Scripture text here..."
+    }
+];
+```
+
+**Note:** Changes made in Edit mode are stored in memory only. Persistence features are planned for v0.3.
 
 ## 🔧 Development Roadmap
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
 | **v0.1 – Prototype** | ✅ **Complete** | Working demo with intelligent smooth scrolling, sticky headers, gradient fade, and bookmark mode. |
-| **v0.2 – JSON Loader** | 🔄 Next | Load verses dynamically from a `passages.json` file. |
-| **v0.3 – Configurable Themes** | 🔄 Planned | Add light mode and typography controls. |
+| **v0.2 – In-App Editing** | ✅ **Complete** | Edit mode for text/passage management, Style mode for red-letter text, light/dark theme toggle. |
+| **v0.3 – Persistence** | 🔄 Next | Save edited passages to localStorage or export/import JSON. |
 | **v0.4 – Enhanced Navigation** | 🔄 Planned | Jump to specific passages, search, and keyboard shortcuts reference. |
 | **v0.5 – Presentation Controls** | 🔄 Planned | Optional remote control via local server or web socket. |
 | **v1.0 – Release** | 🔄 Planned | Polished and production-ready for live service projection. |
@@ -113,15 +149,16 @@ Currently, passages are hardcoded in `app.js` (lines 2-19). To customize:
 **Current Implementation:**
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools or dependencies)
 - **Animations:** Native `scrollIntoView()` and `scrollBy()` with CSS transitions
-- **Data Source:** Hardcoded JavaScript array (JSON loader coming in v0.2)
+- **Data Source:** In-memory JavaScript array (editable via Edit mode)
 - **Typography:** Georgia serif, 4rem size, justified text
-- **Theme:** Dark mode with high contrast for projection
+- **Themes:** Dark mode (default) and light mode (toggled with **T** key)
+- **Editing:** Full WYSIWYG editing with contentEditable, passage management with dynamic re-rendering
 
 **Planned Enhancements:**
-- Dynamic JSON/YAML passage loading
-- Light/dark theme toggle
+- Persistent storage (localStorage or JSON export/import)
 - WebSocket server for remote control
 - Optional Bible API integration
+- Enhanced navigation and search
 
 ## 🕊️ Design Principles
 
@@ -140,6 +177,13 @@ Currently, passages are hardcoded in `app.js` (lines 2-19). To customize:
 3. Open `index.html` on the projection computer
 4. Press **F11** for fullscreen mode
 
+**Preparation (New in v0.2!):**
+1. Press **E** to enter Edit mode
+2. Copy the pastor's passage outline and paste directly into the app
+3. Add paragraph breaks, fix formatting as needed
+4. Press **S** to mark any words of Jesus in red
+5. Press **Esc** to return to presentation mode
+
 **During the Sermon:**
 - As the pastor reads, the operator presses **Space** to advance
 - If a section is long, the app automatically scrolls through it progressively
@@ -147,5 +191,6 @@ Currently, passages are hardcoded in `app.js` (lines 2-19). To customize:
 - Previous text remains visible but dimmed, maintaining reading continuity
 - When the pastor pauses to explain, press **B** to fade the text reverently
 - Press **B** again to restore the text and continue reading
+- Press **T** to switch between light and dark mode based on lighting conditions
 
 **Result:** The congregation experiences Scripture as a flowing, meditative journey rather than disconnected slide fragments.
