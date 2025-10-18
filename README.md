@@ -27,9 +27,10 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 | **Light mode** | ✅ Implemented | Clean paper-white theme for daytime services, toggled with **T** key. |
 | **In-app editing** | ✅ Implemented | Edit mode (**E** key) for text editing; Style mode (**S** key) for marking words of Christ in red. |
 | **Passage management** | ✅ Implemented | Add, remove, reorder passages directly in Edit mode with visual toolbar buttons. |
-| **Offline-ready** | ✅ Implemented | Fully static — runs from filesystem, USB drive, or any web server without internet. |
-| **JSON data source** | 🔄 Planned | Load verses dynamically from a `passages.json` file (currently hardcoded samples). |
-| **Remote control** | 🔄 Planned | Optional control via local server or web socket. |
+| **File browser** | ✅ Implemented | Press **F** to open file browser, load different passage files, auto-save on edit. |
+| **JSON data source** | ✅ Implemented | Load verses dynamically from JSON files in `passages/` directory. |
+| **Node.js server** | ✅ Implemented | Express server for file loading/saving, configurable passages directory. |
+| **Remote control** | 🔄 Planned | Optional control via web socket for tablet/phone remote. |
 
 ---
 
@@ -39,11 +40,14 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 
 scripture-scroller/
 │
+├── server.js # Node.js/Express backend
+├── package.json # Dependencies
+├── config.json # Server configuration
 ├── index.html # Main presentation file
 ├── style.css # Typography and theme styles
 ├── app.js # Scrolling and interaction logic
-├── passages.json # Sermon passages (editable)
-└── assets/ # Backgrounds, logos, etc. (optional)
+└── passages/ # Sermon passage files (JSON)
+    └── john-1-1-10.json # Example passage file
 
 
 ### 2. Example `passages.json`
@@ -69,9 +73,19 @@ scripture-scroller/
 
 ### Getting Started
 
-1. Clone or download the repository.
-2. Open `index.html` in a modern web browser (Chrome, Edge, or Firefox recommended).
-3. The demo loads with sample passages from John 1:1–10.
+**New in v0.3:** Scripture Scroller now requires Node.js for file management and persistence.
+
+1. Clone or download the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the server:
+   ```bash
+   npm start
+   ```
+4. Open your browser to `http://localhost:3000`
+5. The app loads with default hardcoded passages (or press **F** to load from files)
 
 ### Keyboard Controls
 
@@ -82,6 +96,7 @@ scripture-scroller/
 | **↑** | Scroll backward (within passage or to previous verse) |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
 | **T** | Toggle light/dark theme |
+| **F** | Open file browser to load/manage passage files |
 | **E** | Enter Edit mode |
 | **S** | Enter Style mode |
 
@@ -101,37 +116,54 @@ scripture-scroller/
 |-----|--------|
 | **Select text + Enter** | Mark selected text as "words of Christ" (displays in red) |
 
-### Editing Passages
+### Managing Passage Files
 
-**New in v0.2:** Passages can now be edited directly in the app!
+**New in v0.3:** Full file management with persistence!
 
-**Using In-App Editing (Recommended):**
-1. Press **E** to enter Edit mode
-2. Click into any verse reference or text to edit
-3. Use toolbar buttons to add, remove, or reorder passages:
+#### Loading Passage Files
+1. Press **F** to open the file browser sidebar
+2. Click on any `.json` file to load it
+3. The passages will replace current content and scroll to the beginning
+
+#### Creating New Passage Files
+1. Create a new `.json` file in the `passages/` directory
+2. Use the format shown in "Example passages.json" above
+3. Press **F** to refresh the file browser and load it
+
+#### Editing Passages
+1. Press **F** to load a passage file (if needed)
+2. Press **E** to enter Edit mode
+3. Click into any verse reference or text to edit
+4. Use toolbar buttons to add, remove, or reorder passages:
    - **↑↓** - Move passages up/down
    - **⊕↑⊕↓** - Insert new passages above/below
    - **×** - Delete passages
-4. Press **Esc** to save and return to presentation mode
+5. Press **Esc** to save and return to presentation mode
+6. **Changes are automatically saved** to the loaded file!
 
-**Styling Words of Christ:**
+#### Styling Words of Christ
 1. Press **S** to enter Style mode
 2. Select the text you want to mark as Jesus' words
 3. Press **Enter** to apply red styling
 4. Press **Esc** to exit Style mode
+5. Changes are automatically saved if a file is loaded
 
-**Manual Editing (Advanced):**
-Passages are stored in the `passages` array in `app.js` (lines 2-19). You can also edit this directly:
-```javascript
-const passages = [
-    {
-        ref: "Your Reference",
-        text: "Your Scripture text here..."
-    }
-];
+#### Configuration
+Edit `config.json` to customize:
+```json
+{
+  "passagesDir": "./passages",  // Path to passage files
+  "port": 3000                   // Server port
+}
 ```
 
-**Note:** Changes made in Edit mode are stored in memory only. Persistence features are planned for v0.3.
+To use OneDrive sync, point `passagesDir` to your OneDrive folder:
+```json
+{
+  "passagesDir": "/Users/yourname/OneDrive/scripture-passages",
+  "port": 3000
+}
+```
 
 ## 🔧 Development Roadmap
 
@@ -139,26 +171,29 @@ const passages = [
 |-----------|--------|-------------|
 | **v0.1 – Prototype** | ✅ **Complete** | Working demo with intelligent smooth scrolling, sticky headers, gradient fade, and bookmark mode. |
 | **v0.2 – In-App Editing** | ✅ **Complete** | Edit mode for text/passage management, Style mode for red-letter text, light/dark theme toggle. |
-| **v0.3 – Persistence** | 🔄 Next | Save edited passages to localStorage or export/import JSON. |
-| **v0.4 – Enhanced Navigation** | 🔄 Planned | Jump to specific passages, search, and keyboard shortcuts reference. |
-| **v0.5 – Presentation Controls** | 🔄 Planned | Optional remote control via local server or web socket. |
+| **v0.3 – Persistence** | ✅ **Complete** | Node.js server with file browser, load/save JSON files, auto-save on edit, OneDrive sync support. |
+| **v0.4 – Enhanced Navigation** | 🔄 Next | Jump to specific passages, search, and keyboard shortcuts reference. |
+| **v0.5 – Presentation Controls** | 🔄 Planned | Optional remote control via web socket for tablet/phone. |
 | **v1.0 – Release** | 🔄 Planned | Polished and production-ready for live service projection. |
 
 ## 🧰 Technical Stack
 
 **Current Implementation:**
-- **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools or dependencies)
+- **Backend:** Node.js + Express server for file management
+- **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
 - **Animations:** Native `scrollIntoView()` and `scrollBy()` with CSS transitions
-- **Data Source:** In-memory JavaScript array (editable via Edit mode)
+- **Data Source:** JSON files loaded via REST API, auto-saved on edit
+- **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
 - **Typography:** Georgia serif, 4rem size, justified text
 - **Themes:** Dark mode (default) and light mode (toggled with **T** key)
 - **Editing:** Full WYSIWYG editing with contentEditable, passage management with dynamic re-rendering
+- **File Browser:** Sidebar UI for loading/managing passage files
 
 **Planned Enhancements:**
-- Persistent storage (localStorage or JSON export/import)
-- WebSocket server for remote control
-- Optional Bible API integration
-- Enhanced navigation and search
+- WebSocket server for remote control via tablet/phone
+- Optional Bible API integration for dynamic text fetching
+- Enhanced navigation (jump to passage, search)
+- Keyboard shortcuts reference overlay
 
 ## 🕊️ Design Principles
 
@@ -177,12 +212,14 @@ const passages = [
 3. Open `index.html` on the projection computer
 4. Press **F11** for fullscreen mode
 
-**Preparation (New in v0.2!):**
-1. Press **E** to enter Edit mode
-2. Copy the pastor's passage outline and paste directly into the app
-3. Add paragraph breaks, fix formatting as needed
-4. Press **S** to mark any words of Jesus in red
-5. Press **Esc** to return to presentation mode
+**Preparation (New in v0.3!):**
+1. Create a file `passages/romans-8-1-17.json` with the passage breakdown
+2. Or load an existing file and press **E** to enter Edit mode
+3. Copy the pastor's passage outline and paste directly into the app
+4. Add paragraph breaks, fix formatting as needed
+5. Press **S** to mark any words of Jesus in red
+6. Press **Esc** to save and return to presentation mode
+7. Changes are automatically saved to the file!
 
 **During the Sermon:**
 - As the pastor reads, the operator presses **Space** to advance

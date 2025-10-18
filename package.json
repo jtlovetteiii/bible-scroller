@@ -1,0 +1,21 @@
+{
+  "name": "scripture-scroller",
+  "version": "0.2.0",
+  "description": "Lightweight browser-based presentation tool for displaying Bible passages with smooth scrolling",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "bible",
+    "presentation",
+    "worship",
+    "scripture"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

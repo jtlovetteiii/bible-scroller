@@ -24,6 +24,8 @@ let isBlanked = false; // Track if content is blanked (bookmark mode)
 let stickyWasVisible = false; // Track sticky reference state before blanking
 let isLightTheme = false; // Track current theme state
 let currentMode = 'normal'; // Track current mode: 'normal', 'edit', 'style'
+let currentFileName = null; // Track currently loaded file
+let isFileBrowserOpen = false; // Track file browser state
 
 // Render all verses to the DOM
 function renderVerses() {
@@ -72,6 +74,9 @@ function init() {
 
     // Set up keyboard navigation
     document.addEventListener('keydown', handleKeyPress);
+
+    // Set up file browser
+    initFileBrowser();
 
     // Hide controls hint after a few seconds
     setTimeout(() => {
@@ -122,7 +127,16 @@ function handleKeyPress(event) {
         } else if (event.key === 't' || event.key === 'T') {
             event.preventDefault();
             toggleTheme();
+        } else if (event.key === 'f' || event.key === 'F') {
+            event.preventDefault();
+            toggleFileBrowser();
         }
+    }
+
+    // File browser: Escape key closes it
+    if (isFileBrowserOpen && event.key === 'Escape') {
+        event.preventDefault();
+        toggleFileBrowser();
     }
 
     // In style mode, handle text selection with Enter key
@@ -475,6 +489,11 @@ function disableEditing() {
             buttons.remove();
         }
     });
+
+    // Auto-save to file if a file is currently loaded
+    if (currentFileName) {
+        savePassageFile();
+    }
 }
 
 // Apply "words of Christ" styling to selected text
@@ -591,6 +610,131 @@ function deletePassage(index) {
         }
 
         renderVerses();
+    }
+}
+
+// File Browser Functions
+// ======================
+
+// Initialize file browser
+function initFileBrowser() {
+    const closeBtn = document.getElementById('close-file-browser');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', toggleFileBrowser);
+    }
+}
+
+// Toggle file browser visibility
+function toggleFileBrowser() {
+    isFileBrowserOpen = !isFileBrowserOpen;
+    const fileBrowser = document.getElementById('file-browser');
+
+    if (isFileBrowserOpen) {
+        fileBrowser.classList.remove('hidden');
+        loadFileList();
+    } else {
+        fileBrowser.classList.add('hidden');
+    }
+}
+
+// Load list of available passage files from server
+async function loadFileList() {
+    const fileListContainer = document.getElementById('file-list');
+
+    try {
+        const response = await fetch('/api/passages');
+        const data = await response.json();
+
+        if (data.files && data.files.length > 0) {
+            fileListContainer.innerHTML = '';
+            data.files.forEach(filename => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                if (filename === currentFileName) {
+                    fileItem.classList.add('active');
+                }
+
+                const fileLink = document.createElement('a');
+                fileLink.href = '#';
+                fileLink.textContent = filename;
+                fileLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadPassageFile(filename);
+                });
+
+                fileItem.appendChild(fileLink);
+                fileListContainer.appendChild(fileItem);
+            });
+        } else {
+            fileListContainer.innerHTML = '<p class="no-files">No passage files found.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading file list:', error);
+        fileListContainer.innerHTML = '<p class="error">Failed to load files. Is the server running?</p>';
+    }
+}
+
+// Load a specific passage file
+async function loadPassageFile(filename) {
+    try {
+        const response = await fetch(`/api/passages/${filename}`);
+        const data = await response.json();
+
+        if (data.passages) {
+            // Replace current passages with loaded data
+            passages.length = 0;
+            passages.push(...data.passages);
+
+            // Update UI
+            currentFileName = filename;
+            currentIndex = 0;
+            isPartiallyScrolled = false;
+            renderVerses();
+            updateCurrentFileName();
+
+            // Close file browser
+            toggleFileBrowser();
+        }
+    } catch (error) {
+        console.error('Error loading passage file:', error);
+        alert('Failed to load passage file.');
+    }
+}
+
+// Save current passages to file
+async function savePassageFile() {
+    if (!currentFileName) {
+        alert('No file currently loaded. Cannot save.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/passages/${currentFileName}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ passages })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log('Saved passages to', currentFileName);
+        } else {
+            throw new Error('Save failed');
+        }
+    } catch (error) {
+        console.error('Error saving passage file:', error);
+        alert('Failed to save passage file.');
+    }
+}
+
+// Update current filename display
+function updateCurrentFileName() {
+    const currentFileDisplay = document.getElementById('current-file-name');
+    if (currentFileDisplay) {
+        currentFileDisplay.textContent = currentFileName || 'None (using default passages)';
     }
 }
 

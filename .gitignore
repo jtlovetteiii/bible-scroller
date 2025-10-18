@@ -1,0 +1,13 @@
+# Node modules
+node_modules/
+
+# User-created passage files (keep only examples in git)
+passages/*.json
+!passages/john-1-1-10.json
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -20,11 +20,25 @@
     </div>
 
     <div id="controls-hint">
-        Press <kbd>Space</kbd> or <kbd>↓</kbd> to advance • <kbd>↑</kbd> to go back • <kbd>T</kbd> to toggle theme
+        Press <kbd>Space</kbd> or <kbd>↓</kbd> to advance • <kbd>↑</kbd> to go back • <kbd>T</kbd> to toggle theme • <kbd>F</kbd> to open files
     </div>
 
     <div id="mode-indicator" class="hidden">
         <span id="mode-indicator-text">NORMAL</span>
+    </div>
+
+    <!-- File Browser Sidebar -->
+    <div id="file-browser" class="hidden">
+        <div id="file-browser-header">
+            <h3>Passage Files</h3>
+            <button id="close-file-browser" aria-label="Close file browser">✕</button>
+        </div>
+        <div id="current-file">
+            <strong>Current:</strong> <span id="current-file-name">None</span>
+        </div>
+        <div id="file-list">
+            <!-- File list will be populated here -->
+        </div>
     </div>
 
     <script src="app.js"></script>
