@@ -24,7 +24,7 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 | **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
 | **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
 | **Dark mode** | ✅ Implemented | High-contrast dark theme optimized for low-light sanctuaries. |
-| **Light mode** | ✅ Implemented | Clean paper-white theme for daytime services, toggled with **T** key. |
+| **Light mode (Bible page aesthetic)** | ✅ Implemented | Warm cream paper texture with authentic Bible page details: subtle gutter shadow and red page edge. Toggled with **T** key. |
 | **In-app editing** | ✅ Implemented | Edit mode (**E** key) for text editing; Style mode (**S** key) for marking words of Christ in red. |
 | **Passage management** | ✅ Implemented | Add, remove, reorder passages directly in Edit mode with visual toolbar buttons. |
 | **File browser** | ✅ Implemented | Press **F** to open file browser, load different passage files, auto-save on edit. |
@@ -172,9 +172,10 @@ To use OneDrive sync, point `passagesDir` to your OneDrive folder:
 | **v0.1 – Prototype** | ✅ **Complete** | Working demo with intelligent smooth scrolling, sticky headers, gradient fade, and bookmark mode. |
 | **v0.2 – In-App Editing** | ✅ **Complete** | Edit mode for text/passage management, Style mode for red-letter text, light/dark theme toggle. |
 | **v0.3 – Persistence** | ✅ **Complete** | Node.js server with file browser, load/save JSON files, auto-save on edit, OneDrive sync support. |
-| **v0.4 – Enhanced Navigation** | 🔄 Next | Jump to specific passages, search, and keyboard shortcuts reference. |
-| **v0.5 – Presentation Controls** | 🔄 Planned | Optional remote control via web socket for tablet/phone. |
-| **v1.0 – Release** | 🔄 Planned | Polished and production-ready for live service projection. |
+| **v0.4 – Visual Polish** | ✅ **Complete** | Enhanced light mode with authentic Bible page aesthetic: warm cream paper texture, subtle gutter shadow, and red page edge detail. |
+| **v0.5 – Enhanced Navigation** | 🔄 Next | Jump to specific passages, search, and keyboard shortcuts reference. |
+| **v0.6 – Presentation Controls** | 🔄 Planned | Optional remote control via web socket for tablet/phone. |
+| **v1.0 – Release** | 🔄 Planned | Production-ready for live service projection. |
 
 ## 🧰 Technical Stack
 
@@ -185,7 +186,7 @@ To use OneDrive sync, point `passagesDir` to your OneDrive folder:
 - **Data Source:** JSON files loaded via REST API, auto-saved on edit
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
 - **Typography:** Georgia serif, 4rem size, justified text
-- **Themes:** Dark mode (default) and light mode (toggled with **T** key)
+- **Themes:** Dark mode (default) and light mode with authentic Bible page aesthetic (warm cream texture, gutter shadow, red page edge)
 - **Editing:** Full WYSIWYG editing with contentEditable, passage management with dynamic re-rendering
 - **File Browser:** Sidebar UI for loading/managing passage files
 
