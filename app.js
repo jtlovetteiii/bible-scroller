@@ -27,6 +27,13 @@ let currentMode = 'normal'; // Track current mode: 'normal', 'edit', 'style'
 let currentFileName = null; // Track currently loaded file
 let isFileBrowserOpen = false; // Track file browser state
 
+// Hold-to-scroll state
+let isScrollingDown = false;
+let isScrollingUp = false;
+let scrollInterval = null;
+const SCROLL_SPEED = 350; // pixels per second (reading pace)
+const SCROLL_INTERVAL_MS = 16; // ~60fps
+
 // Render all verses to the DOM
 function renderVerses() {
     const container = document.getElementById('verses-container');
@@ -74,6 +81,7 @@ function init() {
 
     // Set up keyboard navigation
     document.addEventListener('keydown', handleKeyPress);
+    document.addEventListener('keyup', handleKeyRelease);
 
     // Set up file browser
     initFileBrowser();
@@ -115,12 +123,22 @@ function handleKeyPress(event) {
 
     // Navigation keys only work in normal mode
     if (currentMode === 'normal') {
-        if (event.key === ' ' || event.key === 'ArrowDown') {
+        if (event.key === ' ') {
+            // Spacebar: Jump to next passage
             event.preventDefault();
-            navigateNext();
+            jumpToNextPassage();
+        } else if (event.key === 'ArrowDown') {
+            // Down arrow: Start continuous scroll (hold to scroll)
+            event.preventDefault();
+            if (!isScrollingDown) {
+                startScrollDown();
+            }
         } else if (event.key === 'ArrowUp') {
+            // Up arrow: Start continuous scroll up (hold to scroll)
             event.preventDefault();
-            navigatePrevious();
+            if (!isScrollingUp) {
+                startScrollUp();
+            }
         } else if (event.key === 'b' || event.key === 'B') {
             event.preventDefault();
             toggleBlank();
@@ -146,107 +164,111 @@ function handleKeyPress(event) {
     }
 }
 
-// Navigate to next verse or scroll within current passage
-function navigateNext() {
-    const currentVerse = document.getElementById(`verse-${currentIndex}`);
-    const scrollContainer = document.getElementById('scroller-container');
-
-    if (!currentVerse) return;
-
-    // Check if there's more content below the viewport in the current verse
-    const verseRect = currentVerse.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const verseBottom = verseRect.bottom;
-    const viewportBottom = containerRect.bottom;
-
-    // If verse extends below viewport (with some buffer), do a partial scroll
-    if (verseBottom > viewportBottom + 50) {
-        // Partial scroll: move down 75% of viewport height
-        partialScrollDown();
-        isPartiallyScrolled = true;
-    } else {
-        // Full transition to next verse
-        if (currentIndex < passages.length - 1) {
-            currentIndex++;
-            isPartiallyScrolled = false;
-            scrollToVerse(currentIndex);
-            updateVerseStates();
+// Handle key release to stop continuous scrolling
+function handleKeyRelease(event) {
+    if (currentMode === 'normal') {
+        if (event.key === 'ArrowDown') {
+            stopScrollDown();
+        } else if (event.key === 'ArrowUp') {
+            stopScrollUp();
         }
     }
 }
 
-// Navigate to previous verse or scroll back within current passage
-function navigatePrevious() {
-    const currentVerse = document.getElementById(`verse-${currentIndex}`);
-    const scrollContainer = document.getElementById('scroller-container');
-
-    if (!currentVerse) return;
-
-    // Check if the verse top is above the viewport
-    const verseRect = currentVerse.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const verseTop = verseRect.top;
-    const viewportTop = containerRect.top;
-
-    // If we're partially scrolled or verse extends above viewport, scroll back up
-    if (isPartiallyScrolled || verseTop < viewportTop - 50) {
-        partialScrollUp();
-
-        // Check if we're now back at the top of the current verse
-        setTimeout(() => {
-            const updatedRect = currentVerse.getBoundingClientRect();
-            if (Math.abs(updatedRect.top - containerRect.top) < 100) {
-                isPartiallyScrolled = false;
-            }
-        }, 600);
-    } else {
-        // Full transition to previous verse
-        if (currentIndex > 0) {
-            currentIndex--;
-            isPartiallyScrolled = false;
-            scrollToVerse(currentIndex);
-            updateVerseStates();
-        }
+// Jump to next passage (Spacebar)
+function jumpToNextPassage() {
+    if (currentIndex < passages.length - 1) {
+        currentIndex++;
+        isPartiallyScrolled = false;
+        scrollToVerse(currentIndex);
+        updateVerseStates();
     }
 }
 
-// Partial scroll down within current passage (slower, keeps context)
-function partialScrollDown() {
-    const scrollContainer = document.getElementById('scroller-container');
-    const scrollAmount = window.innerHeight * 0.6; // 75% of viewport
-
-    scrollContainer.scrollBy({
-        top: scrollAmount,
-        behavior: 'smooth'
-    });
-
-    // Show sticky reference and gradient when scrolling within passage
+// Start continuous scroll down (hold Down arrow)
+function startScrollDown() {
+    isScrollingDown = true;
     showStickyReference();
     showScrollGradient();
+
+    scrollInterval = setInterval(() => {
+        const scrollContainer = document.getElementById('scroller-container');
+        const currentVerse = document.getElementById(`verse-${currentIndex}`);
+
+        if (!currentVerse) {
+            stopScrollDown();
+            return;
+        }
+
+        // Check if we're at the bottom boundary of the current passage
+        const verseRect = currentVerse.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const verseBottom = verseRect.bottom;
+        const viewportBottom = containerRect.bottom;
+
+        // Stop scrolling if we've reached the end of the current passage
+        if (verseBottom <= viewportBottom + 50) {
+            stopScrollDown();
+            return;
+        }
+
+        // Calculate scroll amount per frame
+        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
+        scrollContainer.scrollTop += scrollPerFrame;
+        isPartiallyScrolled = true;
+    }, SCROLL_INTERVAL_MS);
 }
 
-// Partial scroll up within current passage
-function partialScrollUp() {
-    const scrollContainer = document.getElementById('scroller-container');
-    const scrollAmount = window.innerHeight * 0.6; // 75% of viewport
+// Stop continuous scroll down
+function stopScrollDown() {
+    isScrollingDown = false;
+    if (scrollInterval) {
+        clearInterval(scrollInterval);
+        scrollInterval = null;
+    }
+}
 
-    scrollContainer.scrollBy({
-        top: -scrollAmount,
-        behavior: 'smooth'
-    });
+// Start continuous scroll up (hold Up arrow)
+function startScrollUp() {
+    isScrollingUp = true;
 
-    // Check if we should hide sticky reference and gradient after scrolling back up
-    setTimeout(() => {
+    scrollInterval = setInterval(() => {
+        const scrollContainer = document.getElementById('scroller-container');
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const verseRect = currentVerse.getBoundingClientRect();
 
-        // If we're back at the top of the verse, hide sticky reference and gradient
-        if (Math.abs(verseRect.top - containerRect.top) < 100) {
+        if (!currentVerse) {
+            stopScrollUp();
+            return;
+        }
+
+        // Check if we're at the top boundary of the current passage
+        const verseRect = currentVerse.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const verseTop = verseRect.top;
+        const viewportTop = containerRect.top;
+
+        // Stop scrolling if we've reached the start of the current passage
+        if (verseTop >= viewportTop - 50) {
+            stopScrollUp();
             hideStickyReference();
             hideScrollGradient();
+            isPartiallyScrolled = false;
+            return;
         }
-    }, 600);
+
+        // Calculate scroll amount per frame
+        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
+        scrollContainer.scrollTop -= scrollPerFrame;
+    }, SCROLL_INTERVAL_MS);
+}
+
+// Stop continuous scroll up
+function stopScrollUp() {
+    isScrollingUp = false;
+    if (scrollInterval) {
+        clearInterval(scrollInterval);
+        scrollInterval = null;
+    }
 }
 
 // Scroll to a specific verse (between-passage transition)
