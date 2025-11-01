@@ -18,7 +18,11 @@ const passages = [
     }
 ];
 
+const media = [];
+
 let currentIndex = 0;
+let currentMediaIndex = 0;
+let presentationMode = 'scripture'; // scripture or media
 let isPartiallyScrolled = false; // Track if we're mid-passage
 let isBlanked = false; // Track if content is blanked (bookmark mode)
 let stickyWasVisible = false; // Track sticky reference state before blanking
@@ -30,9 +34,9 @@ let isFileBrowserOpen = false; // Track file browser state
 // Hold-to-scroll state
 let isScrollingDown = false;
 let isScrollingUp = false;
-let scrollInterval = null;
+let scrollAnimationFrame = null;
+let lastScrollTimestamp = null;
 const SCROLL_SPEED = 350; // pixels per second (reading pace)
-const SCROLL_INTERVAL_MS = 16; // ~60fps
 
 // Render all verses to the DOM
 function renderVerses() {
@@ -124,20 +128,30 @@ function handleKeyPress(event) {
     // Navigation keys only work in normal mode
     if (currentMode === 'normal') {
         if (event.key === ' ') {
-            // Spacebar: Jump to next passage
+            // Spacebar: Jump to next passage or media
             event.preventDefault();
             jumpToNextPassage();
         } else if (event.key === 'ArrowDown') {
-            // Down arrow: Start continuous scroll (hold to scroll)
             event.preventDefault();
-            if (!isScrollingDown) {
-                startScrollDown();
+            if (presentationMode === 'media') {
+                // In media mode: navigate to next media
+                jumpToNextPassage();
+            } else {
+                // In scripture mode: start continuous scroll (hold to scroll)
+                if (!isScrollingDown) {
+                    startScrollDown();
+                }
             }
         } else if (event.key === 'ArrowUp') {
-            // Up arrow: Start continuous scroll up (hold to scroll)
             event.preventDefault();
-            if (!isScrollingUp) {
-                startScrollUp();
+            if (presentationMode === 'media') {
+                // In media mode: navigate to previous media
+                navigatePrevious();
+            } else {
+                // In scripture mode: start continuous scroll up (hold to scroll)
+                if (!isScrollingUp) {
+                    startScrollUp();
+                }
             }
         } else if (event.key === 'b' || event.key === 'B') {
             event.preventDefault();
@@ -148,6 +162,9 @@ function handleKeyPress(event) {
         } else if (event.key === 'f' || event.key === 'F') {
             event.preventDefault();
             toggleFileBrowser();
+        } else if (event.key === 'm' || event.key === 'M') {
+            event.preventDefault();
+            togglePresentationMode();
         }
     }
 
@@ -166,7 +183,8 @@ function handleKeyPress(event) {
 
 // Handle key release to stop continuous scrolling
 function handleKeyRelease(event) {
-    if (currentMode === 'normal') {
+    // Only stop scrolling if in normal mode and scripture mode
+    if (currentMode === 'normal' && presentationMode === 'scripture') {
         if (event.key === 'ArrowDown') {
             stopScrollDown();
         } else if (event.key === 'ArrowUp') {
@@ -177,6 +195,15 @@ function handleKeyRelease(event) {
 
 // Jump to next passage (Spacebar)
 function jumpToNextPassage() {
+    // In media mode, advance to next media item
+    if (presentationMode === 'media') {
+        if (currentMediaIndex < media.length - 1) {
+            currentMediaIndex++;
+            fadeToNextMedia();
+        }
+        return;
+    }
+    
     if (currentIndex < passages.length - 1) {
         currentIndex++;
         isPartiallyScrolled = false;
@@ -185,13 +212,26 @@ function jumpToNextPassage() {
     }
 }
 
+function navigatePrevious() {
+    // In media mode, go back to previous media item
+    if (presentationMode === 'media') {
+        if (currentMediaIndex > 0) {
+            currentMediaIndex--;
+            fadeToNextMedia();
+        }
+    }
+}
+
 // Start continuous scroll down (hold Down arrow)
 function startScrollDown() {
     isScrollingDown = true;
     showStickyReference();
     showScrollGradient();
+    lastScrollTimestamp = null; // Reset timestamp
 
-    scrollInterval = setInterval(() => {
+    const scrollStep = (timestamp) => {
+        if (!isScrollingDown) return;
+
         const scrollContainer = document.getElementById('scroller-container');
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
 
@@ -212,27 +252,39 @@ function startScrollDown() {
             return;
         }
 
-        // Calculate scroll amount per frame
-        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
-        scrollContainer.scrollTop += scrollPerFrame;
-        isPartiallyScrolled = true;
-    }, SCROLL_INTERVAL_MS);
+        // Calculate scroll amount based on elapsed time
+        if (lastScrollTimestamp !== null) {
+            const deltaTime = timestamp - lastScrollTimestamp;
+            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+            scrollContainer.scrollTop += scrollAmount;
+            isPartiallyScrolled = true;
+        }
+
+        lastScrollTimestamp = timestamp;
+        scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    };
+
+    scrollAnimationFrame = requestAnimationFrame(scrollStep);
 }
 
 // Stop continuous scroll down
 function stopScrollDown() {
     isScrollingDown = false;
-    if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
+    if (scrollAnimationFrame) {
+        cancelAnimationFrame(scrollAnimationFrame);
+        scrollAnimationFrame = null;
     }
+    lastScrollTimestamp = null;
 }
 
 // Start continuous scroll up (hold Up arrow)
 function startScrollUp() {
     isScrollingUp = true;
+    lastScrollTimestamp = null; // Reset timestamp
 
-    scrollInterval = setInterval(() => {
+    const scrollStep = (timestamp) => {
+        if (!isScrollingUp) return;
+
         const scrollContainer = document.getElementById('scroller-container');
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
 
@@ -256,19 +308,28 @@ function startScrollUp() {
             return;
         }
 
-        // Calculate scroll amount per frame
-        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
-        scrollContainer.scrollTop -= scrollPerFrame;
-    }, SCROLL_INTERVAL_MS);
+        // Calculate scroll amount based on elapsed time
+        if (lastScrollTimestamp !== null) {
+            const deltaTime = timestamp - lastScrollTimestamp;
+            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+            scrollContainer.scrollTop -= scrollAmount;
+        }
+
+        lastScrollTimestamp = timestamp;
+        scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    };
+
+    scrollAnimationFrame = requestAnimationFrame(scrollStep);
 }
 
 // Stop continuous scroll up
 function stopScrollUp() {
     isScrollingUp = false;
-    if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
+    if (scrollAnimationFrame) {
+        cancelAnimationFrame(scrollAnimationFrame);
+        scrollAnimationFrame = null;
     }
+    lastScrollTimestamp = null;
 }
 
 // Scroll to a specific verse (between-passage transition)
@@ -367,6 +428,151 @@ function toggleTheme() {
     } else {
         document.body.classList.remove('light-theme');
     }
+}
+
+// Toggle presentation mode between scripture and media
+function togglePresentationMode() {
+    console.log('togglePresentationMode called. media.length:', media.length);
+    console.log('media array:', media);
+    console.log('presentationMode:', presentationMode);
+
+    if (media.length === 0) {
+        // No media available, can't switch to media mode
+        console.log('No media available, cannot switch to media mode');
+        return;
+    }
+
+    if (presentationMode === 'scripture') {
+        // Switch to media mode
+        console.log('Switching to media mode');
+        presentationMode = 'media';
+        showMediaMode();
+    } else {
+        // Switch back to scripture mode
+        console.log('Switching to scripture mode');
+        presentationMode = 'scripture';
+        showScriptureMode();
+    }
+}
+
+// Show media mode (fade in current media item)
+function showMediaMode() {
+    const versesContainer = document.getElementById('verses-container');
+    const mediaContainer = document.getElementById('media-container');
+    const stickyRef = document.getElementById('sticky-reference');
+    const scrollGradient = document.getElementById('scroll-gradient');
+
+    // Hide sticky reference and scroll gradient if visible
+    stickyRef.classList.add('hidden');
+    scrollGradient.classList.add('hidden');
+
+    // Show media container and render current media item
+    mediaContainer.style.display = 'flex';
+    renderCurrentMedia();
+
+    // Start crossfade: fade out verses and fade in media simultaneously
+    setTimeout(() => {
+        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
+        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
+
+        versesContainer.style.opacity = '0';
+        mediaContainer.style.opacity = '1';
+
+        // After transition completes, hide verses container and clear styles
+        setTimeout(() => {
+            versesContainer.style.display = 'none';
+            versesContainer.style.opacity = '';
+            versesContainer.style.transition = '';
+            mediaContainer.style.transition = '';
+        }, 1200);
+    }, 50);
+}
+
+// Show scripture mode (fade back to verses)
+function showScriptureMode() {
+    const versesContainer = document.getElementById('verses-container');
+    const mediaContainer = document.getElementById('media-container');
+
+    // Show verses container and prepare for crossfade
+    versesContainer.style.display = 'block';
+
+    // Scroll to the current verse immediately (before fade begins)
+    scrollToVerse(currentIndex);
+
+    // Start crossfade: fade out media and fade in verses simultaneously
+    setTimeout(() => {
+        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
+        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
+
+        mediaContainer.style.opacity = '0';
+        // Only set opacity to 1 if not blanked
+        if (!isBlanked) {
+            versesContainer.style.opacity = '1';
+        } else {
+            versesContainer.style.opacity = '0.05';
+        }
+
+        // After transition completes, hide media container and clear inline styles
+        setTimeout(() => {
+            mediaContainer.style.display = 'none';
+            // Clear inline opacity to let CSS classes (like .blanked) control it
+            versesContainer.style.opacity = '';
+            versesContainer.style.transition = '';
+            mediaContainer.style.transition = '';
+        }, 1200);
+    }, 50);
+}
+
+// Render the current media item
+function renderCurrentMedia() {
+    const mediaContainer = document.getElementById('media-container');
+
+    if (currentMediaIndex < 0 || currentMediaIndex >= media.length) {
+        mediaContainer.innerHTML = '<div class="media-error">No media available</div>';
+        return;
+    }
+
+    const mediaItem = media[currentMediaIndex];
+    const img = document.createElement('img');
+    img.src = `passages/${mediaItem.src}`;
+    img.alt = mediaItem.alt || '';
+    img.className = 'media-image active';
+
+    mediaContainer.innerHTML = '';
+    mediaContainer.appendChild(img);
+}
+
+// Fade transition between media items (crossfade)
+function fadeToNextMedia() {
+    const mediaContainer = document.getElementById('media-container');
+    const currentImg = mediaContainer.querySelector('.media-image');
+
+    if (!currentImg) {
+        // No current image, just render the new one
+        renderCurrentMedia();
+        return;
+    }
+
+    // Create the new image
+    const mediaItem = media[currentMediaIndex];
+    const newImg = document.createElement('img');
+    newImg.src = `passages/${mediaItem.src}`;
+    newImg.alt = mediaItem.alt || '';
+    newImg.className = 'media-image';
+
+    // Add new image to container (it starts at opacity 0)
+    mediaContainer.appendChild(newImg);
+
+    // Trigger crossfade
+    setTimeout(() => {
+        currentImg.classList.remove('active'); // Fade out old
+        newImg.classList.add('active'); // Fade in new
+
+        // Remove old image after transition completes
+        setTimeout(() => {
+            currentImg.remove();
+        }, 600);
+    }, 50);
 }
 
 // Update mode indicator UI
@@ -702,21 +908,53 @@ async function loadPassageFile(filename) {
         const response = await fetch(`/api/passages/${filename}`);
         const data = await response.json();
 
-        if (data.passages) {
-            // Replace current passages with loaded data
+        if (Array.isArray(data)) {
+            // Old format: just an array of passages
             passages.length = 0;
-            passages.push(...data.passages);
-
-            // Update UI
-            currentFileName = filename;
-            currentIndex = 0;
-            isPartiallyScrolled = false;
-            renderVerses();
-            updateCurrentFileName();
-
-            // Close file browser
-            toggleFileBrowser();
+            passages.push(...data);
+            media.length = 0;
         }
+        else if (data.passages) {
+            // Check if it's wrapped by the server
+            if (data.passages.passages && Array.isArray(data.passages.passages)) {
+                // Server wrapper format
+                passages.length = 0;
+                passages.push(...data.passages.passages);
+                media.length = 0;
+                if (data.passages.media && Array.isArray(data.passages.media)) {
+                    media.push(...data.passages.media);
+                }
+            }
+            else if (Array.isArray(data.passages)) {
+                // Direct format with passages array.
+                passages.length = 0;
+                passages.push(...data.passages);
+                media.length = 0;
+                if (data.media && Array.isArray(data.media)) {
+                    media.push(...data.media)
+                }
+            }
+        }
+
+        // Update UI
+        currentFileName = filename;
+        currentIndex = 0;
+        currentMediaIndex = 0;
+        isPartiallyScrolled = false;
+        presentationMode = 'scripture';
+
+        // Make sure we're showing scripture mode.
+        const versesContainer = document.getElementById('verses-container');
+        const mediaContainer = document.getElementById('media-container')
+        versesContainer.style.display = 'block';
+        versesContainer.style.opacity = '' // Clear inline styles to let CSS take over.
+        mediaContainer.style.display = 'none';
+
+        renderVerses();
+        updateCurrentFileName();
+
+        // Close the file browser.
+        toggleFileBrowser();
     } catch (error) {
         console.error('Error loading passage file:', error);
         alert('Failed to load passage file.');

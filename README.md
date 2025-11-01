@@ -16,10 +16,11 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 
 | Feature | Status | Description |
 |----------|--------|-------------|
-| **Smooth scroll navigation** | ✅ Implemented | Each key press scrolls smoothly to the next portion of text — either within a passage or to the next verse section. |
+| **Smooth scroll navigation** | ✅ Implemented | Hardware-accelerated smooth scrolling using `requestAnimationFrame` for buttery-smooth transitions. |
 | **Intelligent scrolling** | ✅ Implemented | Automatically detects when passages are too long for the viewport and scrolls progressively through them. |
 | **Sticky reference header** | ✅ Implemented | Verse reference stays visible at the top when scrolling within a passage, providing context. |
 | **Gradient fade effect** | ✅ Implemented | Text naturally fades as it scrolls toward the top, guiding eyes to new content. |
+| **Media mode** | ✅ Implemented | Toggle to display slides/images alongside Scripture. Press **M** to switch between Scripture and media presentations with smooth crossfade transitions. |
 | **Bookmark mode** | ✅ Implemented | Press **B** to gracefully fade content for sermon pauses (like placing a bookmark in a Bible). |
 | **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
 | **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
@@ -38,6 +39,7 @@ Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow D
 
 ### 1. Project Structure
 
+```
 scripture-scroller/
 │
 ├── server.js # Node.js/Express backend
@@ -48,10 +50,12 @@ scripture-scroller/
 ├── app.js # Scrolling and interaction logic
 └── passages/ # Sermon passage files (JSON)
     └── john-1-1-10.json # Example passage file
+```
 
 
 ### 2. Example `passages.json`
 
+**Basic format (Scripture only):**
 ```json
 [
   {
@@ -61,12 +65,34 @@ scripture-scroller/
   {
     "ref": "John 1:4–6",
     "text": "In Him was life, and the life was the light of men..."
-  },
-  {
-    "ref": "John 1:7–10",
-    "text": "He came as a witness, to bear witness about the light..."
   }
 ]
+```
+
+**Extended format (Scripture + Media):**
+```json
+{
+  "passages": [
+    {
+      "ref": "John 1:1–3",
+      "text": "In the beginning was the Word, and the Word was with God, and the Word was God..."
+    },
+    {
+      "ref": "John 1:4–6",
+      "text": "In Him was life, and the life was the light of men..."
+    }
+  ],
+  "media": [
+    {
+      "src": "sermon-point-1.jpg",
+      "alt": "Main Point 1"
+    },
+    {
+      "src": "sermon-point-2.jpg",
+      "alt": "Main Point 2"
+    }
+  ]
+}
 ```
 
 ## 🖥️ Usage
@@ -92,8 +118,10 @@ scripture-scroller/
 #### Presentation Mode (default)
 | Key | Action |
 |-----|--------|
-| **Space** or **↓** | Scroll forward (within passage or to next verse) |
-| **↑** | Scroll backward (within passage or to previous verse) |
+| **Space** | Advance forward (scroll to next verse in Scripture mode, or next media slide in Media mode) |
+| **↓** | Smooth scroll down within passage (Scripture mode) OR advance to next media slide (Media mode) |
+| **↑** | Smooth scroll up within passage (Scripture mode) OR go back to previous media slide (Media mode) |
+| **M** | Toggle between Scripture mode and Media mode (smooth crossfade transition) |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
 | **T** | Toggle light/dark theme |
 | **F** | Open file browser to load/manage passage files |
@@ -148,16 +176,28 @@ scripture-scroller/
 4. Press **Esc** to exit Style mode
 5. Changes are automatically saved if a file is loaded
 
+#### Using Media Mode
+**New in v0.5:** Display sermon slides/images alongside Scripture!
+
+1. Add a `media` array to your passage JSON file (see "Extended format" above)
+2. Place your image files (JPG, PNG) in the `passages/` directory
+3. During presentation, press **M** to toggle to Media mode
+4. Navigate through slides with **Space**, **↓** (forward), or **↑** (backward)
+5. Press **M** again to return to Scripture mode
+6. The app remembers your position in both Scripture and Media
+
+**Use case:** Perfect for displaying sermon outlines, main points, or illustrations without switching to a separate presentation tool like PowerPoint. Eliminates conflicts between OBS projector mode and other presentation software.
+
 #### Configuration
 Edit `config.json` to customize:
 ```json
 {
   "passagesDir": "./passages",  // Path to passage files
-  "port": 3000                   // Server port
+  "port": 3000                  // Server port
 }
 ```
 
-To use OneDrive sync, point `passagesDir` to your OneDrive folder:
+The simplicity of this approach makes it easy to use with file sync tools like OneDrive sync. For example, you could point `passagesDir` to your OneDrive folder to sync your setup between the computer where you prepare sermon outlines and the computer where you present them to an audience:
 ```json
 {
   "passagesDir": "/Users/yourname/OneDrive/scripture-passages",
@@ -173,8 +213,9 @@ To use OneDrive sync, point `passagesDir` to your OneDrive folder:
 | **v0.2 – In-App Editing** | ✅ **Complete** | Edit mode for text/passage management, Style mode for red-letter text, light/dark theme toggle. |
 | **v0.3 – Persistence** | ✅ **Complete** | Node.js server with file browser, load/save JSON files, auto-save on edit, OneDrive sync support. |
 | **v0.4 – Visual Polish** | ✅ **Complete** | Enhanced light mode with authentic Bible page aesthetic: warm cream paper texture, subtle gutter shadow, and red page edge detail. |
-| **v0.5 – Enhanced Navigation** | 🔄 Next | Jump to specific passages, search, and keyboard shortcuts reference. |
-| **v0.6 – Presentation Controls** | 🔄 Planned | Optional remote control via web socket for tablet/phone. |
+| **v0.5 – Media Integration** | ✅ **Complete** | Media mode for displaying sermon slides/images, smooth crossfade transitions, hardware-accelerated scrolling with `requestAnimationFrame`. |
+| **v0.6 – Enhanced Navigation** | 🔄 Next | Jump to specific passages, search, and keyboard shortcuts reference. |
+| **v0.7 – Presentation Controls** | 🔄 Planned | Optional remote control via web socket for tablet/phone. |
 | **v1.0 – Release** | 🔄 Planned | Production-ready for live service projection. |
 
 ## 🧰 Technical Stack
@@ -182,8 +223,12 @@ To use OneDrive sync, point `passagesDir` to your OneDrive folder:
 **Current Implementation:**
 - **Backend:** Node.js + Express server for file management
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
-- **Animations:** Native `scrollIntoView()` and `scrollBy()` with CSS transitions
-- **Data Source:** JSON files loaded via REST API, auto-saved on edit
+- **Animations:**
+  - Hardware-accelerated smooth scrolling using `requestAnimationFrame` for 60fps+ performance
+  - Native `scrollIntoView()` for passage-to-passage transitions
+  - CSS transitions for crossfade effects (1.2s duration)
+- **Media Support:** Full-screen image display with crossfade transitions between Scripture and Media modes
+- **Data Source:** JSON files loaded via REST API, auto-saved on edit, supports both Scripture-only and Scripture+Media formats
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
 - **Typography:** Georgia serif, 4rem size, justified text
 - **Themes:** Dark mode (default) and light mode with authentic Bible page aesthetic (warm cream texture, gutter shadow, red page edge)
@@ -223,12 +268,14 @@ To use OneDrive sync, point `passagesDir` to your OneDrive folder:
 7. Changes are automatically saved to the file!
 
 **During the Sermon:**
-- As the pastor reads, the operator presses **Space** to advance
-- If a section is long, the app automatically scrolls through it progressively
+- As the pastor reads, the operator presses **Space** to advance between passages, or holds **Down Arrow** to smoothly scroll within the passage (if it's long)
 - The verse reference stays visible at the top for context
 - Previous text remains visible but dimmed, maintaining reading continuity
+- When transitioning to sermon points, press **M** to switch to Media mode
+- Navigate through sermon slides with **Space** or arrow keys
+- Press **M** again to return smoothly to Scripture (remembers your place!)
 - When the pastor pauses to explain, press **B** to fade the text reverently
 - Press **B** again to restore the text and continue reading
 - Press **T** to switch between light and dark mode based on lighting conditions
 
-**Result:** The congregation experiences Scripture as a flowing, meditative journey rather than disconnected slide fragments.
+**Result:** The congregation experiences Scripture as a flowing, meditative journey rather than disconnected slide fragments, with seamless integration of sermon visuals—all in one tool.
