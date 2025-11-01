@@ -34,9 +34,9 @@ let isFileBrowserOpen = false; // Track file browser state
 // Hold-to-scroll state
 let isScrollingDown = false;
 let isScrollingUp = false;
-let scrollInterval = null;
+let scrollAnimationFrame = null;
+let lastScrollTimestamp = null;
 const SCROLL_SPEED = 350; // pixels per second (reading pace)
-const SCROLL_INTERVAL_MS = 16; // ~60fps
 
 // Render all verses to the DOM
 function renderVerses() {
@@ -227,8 +227,11 @@ function startScrollDown() {
     isScrollingDown = true;
     showStickyReference();
     showScrollGradient();
+    lastScrollTimestamp = null; // Reset timestamp
 
-    scrollInterval = setInterval(() => {
+    const scrollStep = (timestamp) => {
+        if (!isScrollingDown) return;
+
         const scrollContainer = document.getElementById('scroller-container');
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
 
@@ -249,27 +252,39 @@ function startScrollDown() {
             return;
         }
 
-        // Calculate scroll amount per frame
-        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
-        scrollContainer.scrollTop += scrollPerFrame;
-        isPartiallyScrolled = true;
-    }, SCROLL_INTERVAL_MS);
+        // Calculate scroll amount based on elapsed time
+        if (lastScrollTimestamp !== null) {
+            const deltaTime = timestamp - lastScrollTimestamp;
+            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+            scrollContainer.scrollTop += scrollAmount;
+            isPartiallyScrolled = true;
+        }
+
+        lastScrollTimestamp = timestamp;
+        scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    };
+
+    scrollAnimationFrame = requestAnimationFrame(scrollStep);
 }
 
 // Stop continuous scroll down
 function stopScrollDown() {
     isScrollingDown = false;
-    if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
+    if (scrollAnimationFrame) {
+        cancelAnimationFrame(scrollAnimationFrame);
+        scrollAnimationFrame = null;
     }
+    lastScrollTimestamp = null;
 }
 
 // Start continuous scroll up (hold Up arrow)
 function startScrollUp() {
     isScrollingUp = true;
+    lastScrollTimestamp = null; // Reset timestamp
 
-    scrollInterval = setInterval(() => {
+    const scrollStep = (timestamp) => {
+        if (!isScrollingUp) return;
+
         const scrollContainer = document.getElementById('scroller-container');
         const currentVerse = document.getElementById(`verse-${currentIndex}`);
 
@@ -293,19 +308,28 @@ function startScrollUp() {
             return;
         }
 
-        // Calculate scroll amount per frame
-        const scrollPerFrame = (SCROLL_SPEED / 1000) * SCROLL_INTERVAL_MS;
-        scrollContainer.scrollTop -= scrollPerFrame;
-    }, SCROLL_INTERVAL_MS);
+        // Calculate scroll amount based on elapsed time
+        if (lastScrollTimestamp !== null) {
+            const deltaTime = timestamp - lastScrollTimestamp;
+            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+            scrollContainer.scrollTop -= scrollAmount;
+        }
+
+        lastScrollTimestamp = timestamp;
+        scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    };
+
+    scrollAnimationFrame = requestAnimationFrame(scrollStep);
 }
 
 // Stop continuous scroll up
 function stopScrollUp() {
     isScrollingUp = false;
-    if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
+    if (scrollAnimationFrame) {
+        cancelAnimationFrame(scrollAnimationFrame);
+        scrollAnimationFrame = null;
     }
+    lastScrollTimestamp = null;
 }
 
 // Scroll to a specific verse (between-passage transition)
