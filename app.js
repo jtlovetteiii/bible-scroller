@@ -128,23 +128,30 @@ function handleKeyPress(event) {
     // Navigation keys only work in normal mode
     if (currentMode === 'normal') {
         if (event.key === ' ') {
-            // Spacebar: Jump to next passage
+            // Spacebar: Jump to next passage or media
             event.preventDefault();
             jumpToNextPassage();
         } else if (event.key === 'ArrowDown') {
-            // Down arrow: Start continuous scroll (hold to scroll)
             event.preventDefault();
-            if (!isScrollingDown) {
-                startScrollDown();
+            if (presentationMode === 'media') {
+                // In media mode: navigate to next media
+                jumpToNextPassage();
+            } else {
+                // In scripture mode: start continuous scroll (hold to scroll)
+                if (!isScrollingDown) {
+                    startScrollDown();
+                }
             }
         } else if (event.key === 'ArrowUp') {
-            // Up arrow: Start continuous scroll up (hold to scroll)
             event.preventDefault();
-            if (!isScrollingUp) {
-                startScrollUp();
-            }
             if (presentationMode === 'media') {
+                // In media mode: navigate to previous media
                 navigatePrevious();
+            } else {
+                // In scripture mode: start continuous scroll up (hold to scroll)
+                if (!isScrollingUp) {
+                    startScrollUp();
+                }
             }
         } else if (event.key === 'b' || event.key === 'B') {
             event.preventDefault();
@@ -176,7 +183,8 @@ function handleKeyPress(event) {
 
 // Handle key release to stop continuous scrolling
 function handleKeyRelease(event) {
-    if (currentMode === 'normal') {
+    // Only stop scrolling if in normal mode and scripture mode
+    if (currentMode === 'normal' && presentationMode === 'scripture') {
         if (event.key === 'ArrowDown') {
             stopScrollDown();
         } else if (event.key === 'ArrowUp') {
@@ -427,23 +435,33 @@ function togglePresentationMode() {
 function showMediaMode() {
     const versesContainer = document.getElementById('verses-container');
     const mediaContainer = document.getElementById('media-container');
+    const stickyRef = document.getElementById('sticky-reference');
+    const scrollGradient = document.getElementById('scroll-gradient');
 
-    // Fade out scripture by adding a temporary class
-    versesContainer.style.opacity = '0';
+    // Hide sticky reference and scroll gradient if visible
+    stickyRef.classList.add('hidden');
+    scrollGradient.classList.add('hidden');
 
+    // Show media container and render current media item
+    mediaContainer.style.display = 'flex';
+    renderCurrentMedia();
+
+    // Start crossfade: fade out verses and fade in media simultaneously
     setTimeout(() => {
-        versesContainer.style.display = 'none';
-        versesContainer.style.opacity = ''; // Clear inline style
-        mediaContainer.style.display = 'flex';
+        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
+        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
 
-        // Render current media item
-        renderCurrentMedia();
+        versesContainer.style.opacity = '0';
+        mediaContainer.style.opacity = '1';
 
-        // Fade in media
+        // After transition completes, hide verses container and clear styles
         setTimeout(() => {
-            mediaContainer.style.opacity = '1';
-        }, 50);
-    }, 600);
+            versesContainer.style.display = 'none';
+            versesContainer.style.opacity = '';
+            versesContainer.style.transition = '';
+            mediaContainer.style.transition = '';
+        }, 1200);
+    }, 50);
 }
 
 // Show scripture mode (fade back to verses)
@@ -451,19 +469,34 @@ function showScriptureMode() {
     const versesContainer = document.getElementById('verses-container');
     const mediaContainer = document.getElementById('media-container');
 
-    // Fade out media
-    mediaContainer.style.opacity = '0';
+    // Show verses container and prepare for crossfade
+    versesContainer.style.display = 'block';
 
+    // Scroll to the current verse immediately (before fade begins)
+    scrollToVerse(currentIndex);
+
+    // Start crossfade: fade out media and fade in verses simultaneously
     setTimeout(() => {
-        mediaContainer.style.display = 'none';
-        versesContainer.style.display = 'block';
+        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
+        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
 
-        // Fade in scripture - don't set inline opacity, let CSS class handle it
-        // The blanked class will control opacity if needed
+        mediaContainer.style.opacity = '0';
+        // Only set opacity to 1 if not blanked
+        if (!isBlanked) {
+            versesContainer.style.opacity = '1';
+        } else {
+            versesContainer.style.opacity = '0.05';
+        }
+
+        // After transition completes, hide media container and clear inline styles
         setTimeout(() => {
-            versesContainer.style.opacity = ''; // Clear inline style to let CSS take over
-        }, 50);
-    }, 600);
+            mediaContainer.style.display = 'none';
+            // Clear inline opacity to let CSS classes (like .blanked) control it
+            versesContainer.style.opacity = '';
+            versesContainer.style.transition = '';
+            mediaContainer.style.transition = '';
+        }, 1200);
+    }, 50);
 }
 
 // Render the current media item
