@@ -3,7 +3,12 @@ node_modules/
 
 # User-created passage files (keep only examples in git)
 passages/*.json
+passages/*.jpg
+passages/*.jpeg
+passages/*/*.jpeg
 !passages/john-1-1-10.json
+!passages/test-point-1.jpg
+!passages/test-point-2.jpg
 outlines/*.pdf
 outlines/*.docx
 
