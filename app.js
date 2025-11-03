@@ -974,7 +974,7 @@ async function savePassageFile() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ passages })
+            body: JSON.stringify({ passages, media })
         });
 
         const data = await response.json();
