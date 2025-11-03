@@ -253,12 +253,11 @@ function startScrollDown() {
         }
 
         // Calculate scroll amount based on elapsed time
-        if (lastScrollTimestamp !== null) {
-            const deltaTime = timestamp - lastScrollTimestamp;
-            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-            scrollContainer.scrollTop += scrollAmount;
-            isPartiallyScrolled = true;
-        }
+        // On first frame, use a default 16ms delta to start scrolling immediately
+        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
+        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+        scrollContainer.scrollTop += scrollAmount;
+        isPartiallyScrolled = true;
 
         lastScrollTimestamp = timestamp;
         scrollAnimationFrame = requestAnimationFrame(scrollStep);
@@ -309,11 +308,10 @@ function startScrollUp() {
         }
 
         // Calculate scroll amount based on elapsed time
-        if (lastScrollTimestamp !== null) {
-            const deltaTime = timestamp - lastScrollTimestamp;
-            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-            scrollContainer.scrollTop -= scrollAmount;
-        }
+        // On first frame, use a default 16ms delta to start scrolling immediately
+        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
+        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+        scrollContainer.scrollTop -= scrollAmount;
 
         lastScrollTimestamp = timestamp;
         scrollAnimationFrame = requestAnimationFrame(scrollStep);
@@ -333,11 +331,11 @@ function stopScrollUp() {
 }
 
 // Scroll to a specific verse (between-passage transition)
-function scrollToVerse(index) {
+function scrollToVerse(index, instant=false) {
     const verse = document.getElementById(`verse-${index}`);
     if (verse) {
         verse.scrollIntoView({
-            behavior: 'smooth',
+            behavior: instant ? 'instant' : 'smooth',
             block: 'start'
         });
     }
@@ -497,7 +495,7 @@ function showScriptureMode() {
     versesContainer.style.display = 'block';
 
     // Scroll to the current verse immediately (before fade begins)
-    scrollToVerse(currentIndex);
+    scrollToVerse(currentIndex, true);
 
     // Start crossfade: fade out media and fade in verses simultaneously
     setTimeout(() => {
@@ -545,7 +543,7 @@ function renderCurrentMedia() {
 // Fade transition between media items (crossfade)
 function fadeToNextMedia() {
     const mediaContainer = document.getElementById('media-container');
-    const currentImg = mediaContainer.querySelector('.media-image');
+    const currentImg = mediaContainer.querySelector('.media-image.active');
 
     if (!currentImg) {
         // No current image, just render the new one
@@ -560,19 +558,41 @@ function fadeToNextMedia() {
     newImg.alt = mediaItem.alt || '';
     newImg.className = 'media-image';
 
-    // Add new image to container (it starts at opacity 0)
-    mediaContainer.appendChild(newImg);
+    // Set initial style to be invisible but on top
+    newImg.style.opacity = '0';
+    newImg.style.zIndex = '2';
 
-    // Trigger crossfade
-    setTimeout(() => {
-        currentImg.classList.remove('active'); // Fade out old
-        newImg.classList.add('active'); // Fade in new
+    // Keep old image visible underneath
+    currentImg.style.zIndex = '1';
 
-        // Remove old image after transition completes
+    // Wait for the image to load before starting the crossfade
+    newImg.onload = () => {
+        // Add new image to container (it starts at opacity 0 on top)
+        mediaContainer.appendChild(newImg);
+
+        // Trigger fade-in of new image (old image stays at opacity 1 underneath)
         setTimeout(() => {
-            currentImg.remove();
-        }, 600);
-    }, 50);
+            newImg.style.transition = 'opacity 0.6s ease-in-out';
+            newImg.style.opacity = '1';
+
+            // Remove old image after transition completes
+            setTimeout(() => {
+                currentImg.remove();
+                // Clean up inline styles and add active class
+                newImg.style.opacity = '';
+                newImg.style.zIndex = '';
+                newImg.style.transition = '';
+                newImg.classList.add('active');
+            }, 600);
+        }, 50);
+    };
+
+    // Handle load errors gracefully
+    newImg.onerror = () => {
+        console.error('Failed to load image:', newImg.src);
+        // Fall back to just showing the new image
+        renderCurrentMedia();
+    };
 }
 
 // Update mode indicator UI
@@ -974,7 +994,7 @@ async function savePassageFile() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ passages })
+            body: JSON.stringify({ passages, media })
         });
 
         const data = await response.json();

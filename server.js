@@ -78,8 +78,17 @@ app.post('/api/passages/:filename', async (req, res) => {
       return res.status(400).json({ error: 'Passages must be an array' });
     }
 
+    // Extract media array (default to empty array if not provided)
+    const media = req.body.media || [];
+
+    // Create file content with both passages and media
+    const fileContent = {
+      passages,
+      media
+    };
+
     const filePath = path.join(PASSAGES_DIR, filename);
-    await fs.writeFile(filePath, JSON.stringify(passages, null, 2), 'utf-8');
+    await fs.writeFile(filePath, JSON.stringify(fileContent, null, 2), 'utf-8');
 
     res.json({ success: true, filename });
   } catch (err) {
