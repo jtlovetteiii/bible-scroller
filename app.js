@@ -333,11 +333,11 @@ function stopScrollUp() {
 }
 
 // Scroll to a specific verse (between-passage transition)
-function scrollToVerse(index) {
+function scrollToVerse(index, instant=false) {
     const verse = document.getElementById(`verse-${index}`);
     if (verse) {
         verse.scrollIntoView({
-            behavior: 'smooth',
+            behavior: instant ? 'instant' : 'smooth',
             block: 'start'
         });
     }
@@ -497,7 +497,7 @@ function showScriptureMode() {
     versesContainer.style.display = 'block';
 
     // Scroll to the current verse immediately (before fade begins)
-    scrollToVerse(currentIndex);
+    scrollToVerse(currentIndex, true);
 
     // Start crossfade: fade out media and fade in verses simultaneously
     setTimeout(() => {
