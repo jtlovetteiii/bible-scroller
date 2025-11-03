@@ -334,9 +334,15 @@ function stopScrollUp() {
 function scrollToVerse(index, instant=false) {
     const verse = document.getElementById(`verse-${index}`);
     if (verse) {
+        // Check if this passage is short (100 characters or less)
+        const passageText = passages[index].text;
+        // Strip HTML tags to get plain text length
+        const plainText = passageText.replace(/<[^>]*>/g, '');
+        const isShortPassage = plainText.length <= 100;
+
         verse.scrollIntoView({
             behavior: instant ? 'instant' : 'smooth',
-            block: 'start'
+            block: isShortPassage ? 'center' : 'start'
         });
     }
 }
