@@ -253,12 +253,11 @@ function startScrollDown() {
         }
 
         // Calculate scroll amount based on elapsed time
-        if (lastScrollTimestamp !== null) {
-            const deltaTime = timestamp - lastScrollTimestamp;
-            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-            scrollContainer.scrollTop += scrollAmount;
-            isPartiallyScrolled = true;
-        }
+        // On first frame, use a default 16ms delta to start scrolling immediately
+        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
+        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+        scrollContainer.scrollTop += scrollAmount;
+        isPartiallyScrolled = true;
 
         lastScrollTimestamp = timestamp;
         scrollAnimationFrame = requestAnimationFrame(scrollStep);
@@ -309,11 +308,10 @@ function startScrollUp() {
         }
 
         // Calculate scroll amount based on elapsed time
-        if (lastScrollTimestamp !== null) {
-            const deltaTime = timestamp - lastScrollTimestamp;
-            const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-            scrollContainer.scrollTop -= scrollAmount;
-        }
+        // On first frame, use a default 16ms delta to start scrolling immediately
+        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
+        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
+        scrollContainer.scrollTop -= scrollAmount;
 
         lastScrollTimestamp = timestamp;
         scrollAnimationFrame = requestAnimationFrame(scrollStep);
