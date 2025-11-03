@@ -55,7 +55,6 @@ body.light-theme::after {
         rgba(168, 57, 59, 0.1) 100%  /* Very subtle near page */
     );
     pointer-events: none;
-    z-index: 100;
 }
 
 /* Main scroller container */
