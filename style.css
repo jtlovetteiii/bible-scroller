@@ -264,7 +264,7 @@ body.light-theme #sticky-reference {
 }
 
 #sticky-reference-text {
-    font-size: 1.8rem;
+    font-size: 2.5rem;
     font-weight: bold;
     color: #aaa;
     letter-spacing: 0.05em;
@@ -272,6 +272,7 @@ body.light-theme #sticky-reference {
     max-width: 1200px;
     margin: 0 auto;
     transition: color 0.4s ease;
+    text-align: right;
 }
 
 /* Light theme sticky text */
