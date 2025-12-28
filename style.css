@@ -172,6 +172,11 @@ body.light-theme .verse-section.active .verse-ref {
     color: #dc143c; /* Crimson red */
 }
 
+/* Quotation styling */
+.words-of-quote {
+    font-style: italic; /* Crimson red */
+}
+
 /* Edit mode buttons */
 .edit-buttons {
     display: inline-flex;
