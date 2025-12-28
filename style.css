@@ -137,7 +137,7 @@ body.light-theme #media-container {
 
 /* Verse reference styling */
 .verse-ref {
-    font-size: 2.5rem;
+    font-size: 3rem;
     font-weight: bold;
     color: #888;
     margin-bottom: 2rem;
@@ -269,7 +269,7 @@ body.light-theme #sticky-reference {
 }
 
 #sticky-reference-text {
-    font-size: 2.5rem;
+    font-size: 3rem;
     font-weight: bold;
     color: #aaa;
     letter-spacing: 0.05em;
