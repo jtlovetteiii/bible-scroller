@@ -342,9 +342,9 @@ function jumpDownWithinPassage() {
 
     if (!currentVerse) return;
 
-    // Calculate jump amount (20% of viewport height, roughly 2-3 lines)
+    // Calculate jump amount (40% of viewport height, roughly 6-8 lines)
     const viewportHeight = scrollContainer.clientHeight;
-    const jumpAmount = viewportHeight * 0.20;
+    const jumpAmount = viewportHeight * 0.40;
 
     // Get current boundaries
     const verseRect = currentVerse.getBoundingClientRect();
@@ -374,11 +374,11 @@ function jumpDownWithinPassage() {
 function scrollToVerse(index, instant=false) {
     const verse = document.getElementById(`verse-${index}`);
     if (verse) {
-        // Check if this passage is short (100 characters or less)
+        // Check if this passage is short (200 characters or less)
         const passageText = passages[index].text;
         // Strip HTML tags to get plain text length
         const plainText = passageText.replace(/<[^>]*>/g, '');
-        const isShortPassage = plainText.length <= 100;
+        const isShortPassage = plainText.length <= 200;
 
         verse.scrollIntoView({
             behavior: instant ? 'instant' : 'smooth',
