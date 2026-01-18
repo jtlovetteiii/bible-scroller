@@ -8,7 +8,7 @@ Traditional sermon slide decks break Scripture into disjointed slides, forcing t
 
 ## ✨ Core Concept
 
-Instead of advancing slide-by-slide, the operator presses **Space** or **Arrow Down** to *scroll* to the next portion of text. The transition is smooth, allowing the congregation to remain visually anchored to the passage. Older verses remain visible for a moment, and new verses enter gently into view — mirroring how people read Scripture digitally today.
+Instead of advancing slide-by-slide, the operator presses **Space** to jump between passages, **Right Arrow** to jump incrementally within a passage, or **Arrow Down** to *smoothly scroll* through text. The transitions are fluid, allowing the congregation to remain visually anchored to the passage. Older verses remain visible for a moment, and new verses enter gently into view — mirroring how people read Scripture digitally today.
 
 ---
 
@@ -119,6 +119,7 @@ scripture-scroller/
 | Key | Action |
 |-----|--------|
 | **Space** | Advance forward (scroll to next verse in Scripture mode, or next media slide in Media mode) |
+| **→** | Jump down incrementally within current passage (instant, no smooth scroll - ideal for low-performance PCs) |
 | **↓** | Smooth scroll down within passage (Scripture mode) OR advance to next media slide (Media mode) |
 | **↑** | Smooth scroll up within passage (Scripture mode) OR go back to previous media slide (Media mode) |
 | **M** | Toggle between Scripture mode and Media mode (smooth crossfade transition) |
@@ -268,7 +269,8 @@ The simplicity of this approach makes it easy to use with file sync tools like O
 7. Changes are automatically saved to the file!
 
 **During the Sermon:**
-- As the pastor reads, the operator presses **Space** to advance between passages, or holds **Down Arrow** to smoothly scroll within the passage (if it's long)
+- As the pastor reads, the operator presses **Space** to advance between passages, **Right Arrow** to jump incrementally within a passage, or holds **Down Arrow** to smoothly scroll within the passage (if it's long)
+- **Tip:** Use **Right Arrow** on lower-performance computers to avoid jerky smooth scrolling
 - The verse reference stays visible at the top for context
 - Previous text remains visible but dimmed, maintaining reading continuity
 - When transitioning to sermon points, press **M** to switch to Media mode

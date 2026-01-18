@@ -8,36 +8,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is a static web application with no build process or dependencies:
+This is a web application with a Node.js backend and vanilla JavaScript frontend:
 
+- **server.js**: Node.js/Express server for file management and REST API
 - **index.html**: Main presentation interface and entry point
 - **app.js**: Core scrolling logic, keyboard navigation, and passage rendering
 - **style.css**: Typography, themes (light/dark modes), and scroll transitions
-- **passages.json**: Editable data file containing sermon passages for each service
+- **passages/**: Directory containing JSON passage files for different services
+- **config.json**: Server configuration (passages directory path, port)
 
 ### Key Technical Decisions
 
-- **No framework**: Vanilla JavaScript for simplicity and offline reliability
-- **Static deployment**: Can run from filesystem, USB drive, or any web server
-- **Smooth scrolling**: Uses native `scrollIntoView({ behavior: "smooth" })` or CSS transitions
+- **No frontend framework**: Vanilla JavaScript for simplicity and offline reliability
+- **Node.js backend**: Express server provides file loading/saving via REST API
+- **Smooth scrolling**: Uses `requestAnimationFrame` for hardware-accelerated scrolling, plus native `scrollIntoView()` for passage transitions
 - **JSON data source**: Simple format for non-technical operators to edit passages
+- **File-based persistence**: All passage data stored in JSON files, supports cloud sync (OneDrive, etc.)
 
 ## Development Commands
 
-This project has no build system. Development workflow:
+This project has no frontend build system. Development workflow:
 
-1. **Run locally**: Open `index.html` directly in a browser (Chrome, Edge, Firefox)
-2. **Edit passages**: Modify `passages.json` and refresh the browser
-3. **Test navigation**: Use Space/Arrow keys to verify smooth scrolling behavior
+1. **Install dependencies**: `npm install`
+2. **Run locally**: `npm start` (starts Express server on port 3000)
+3. **Open app**: Navigate to `http://localhost:3000` in browser
+4. **Edit passages**: Use in-app edit mode (press **E**) or modify JSON files in `passages/` directory
+5. **Test navigation**: Use Space/Arrow keys to verify scrolling behavior
 
 ## Core Functionality
 
 ### Navigation Controls
-- **Space** or **↓**: Scroll to next verse section
-- **↑**: Scroll to previous verse section
+- **Space**: Jump to next passage section
+- **→ (Right Arrow)**: Jump incrementally within current passage (instant, no smooth scroll)
+- **↓ (Down Arrow)**: Smooth continuous scroll within current passage (hold to scroll)
+- **↑ (Up Arrow)**: Smooth continuous scroll up within current passage
+- **M**: Toggle between Scripture and Media modes
+- **B**: Toggle bookmark mode (blank screen)
+- **T**: Toggle light/dark theme
+- **F**: Open file browser
+- **E**: Enter edit mode
+- **S**: Enter style mode (for marking words of Christ)
 
 ### Passage Management
-The `passages.json` format:
+JSON files support two formats:
+
+**Basic format (Scripture only):**
 ```json
 [
   {
@@ -45,6 +60,24 @@ The `passages.json` format:
     "text": "In the beginning was the Word..."
   }
 ]
+```
+
+**Extended format (Scripture + Media):**
+```json
+{
+  "passages": [
+    {
+      "ref": "John 1:1–3",
+      "text": "In the beginning was the Word..."
+    }
+  ],
+  "media": [
+    {
+      "src": "sermon-slide.jpg",
+      "alt": "Sermon Point 1"
+    }
+  ]
+}
 ```
 
 ### Visual Behaviors
@@ -62,14 +95,18 @@ The `passages.json` format:
 
 ## Development Roadmap Context
 
-Current status: Early development (pre-v0.1)
+Current status: v0.5 (Media Integration complete)
 
-Planned milestones:
-- v0.1: Static HTML prototype with smooth scroll
-- v0.2: Dynamic JSON loading
-- v0.3: Highlighting and dimming effects
-- v0.4: Configurable themes (light/dark)
-- v0.5: Optional remote control features
+Completed milestones:
+- v0.1: Static HTML prototype with smooth scroll ✅
+- v0.2: In-app editing ✅
+- v0.3: Node.js server with persistence and file browser ✅
+- v0.4: Enhanced visual polish (authentic Bible page aesthetic) ✅
+- v0.5: Media integration with smooth crossfade transitions ✅
+
+Next milestones:
+- v0.6: Enhanced navigation (jump to passages, search)
+- v0.7: Presentation controls (optional remote control)
 - v1.0: Production-ready for live services
 
 ## Future Considerations

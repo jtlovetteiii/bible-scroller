@@ -165,6 +165,11 @@ function handleKeyPress(event) {
         } else if (event.key === 'm' || event.key === 'M') {
             event.preventDefault();
             togglePresentationMode();
+        } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            if (presentationMode === 'scripture') {
+                jumpDownWithinPassage();
+            }
         }
     }
 
@@ -328,6 +333,41 @@ function stopScrollUp() {
         scrollAnimationFrame = null;
     }
     lastScrollTimestamp = null;
+}
+
+// Jump down within current passage (instant, not smooth)
+function jumpDownWithinPassage() {
+    const scrollContainer = document.getElementById('scroller-container');
+    const currentVerse = document.getElementById(`verse-${currentIndex}`);
+
+    if (!currentVerse) return;
+
+    // Calculate jump amount (20% of viewport height, roughly 2-3 lines)
+    const viewportHeight = scrollContainer.clientHeight;
+    const jumpAmount = viewportHeight * 0.20;
+
+    // Get current boundaries
+    const verseRect = currentVerse.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const verseBottom = verseRect.bottom;
+    const viewportBottom = containerRect.bottom;
+
+    // Calculate remaining space in current passage
+    const remainingSpace = verseBottom - viewportBottom;
+
+    // If we're already at or near the bottom, don't scroll further
+    if (remainingSpace <= 10) {
+        return;
+    }
+
+    // Jump by the smaller of jumpAmount or remaining space
+    const actualJump = Math.min(jumpAmount, remainingSpace - 10);
+    scrollContainer.scrollTop += actualJump;
+
+    // Mark as partially scrolled and show sticky reference
+    isPartiallyScrolled = true;
+    showStickyReference();
+    showScrollGradient();
 }
 
 // Scroll to a specific verse (between-passage transition)
