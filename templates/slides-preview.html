@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>2026-02-22 — A New Destination</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a1a;
+      padding: 48px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      font-family: 'Optima', 'Optima Nova LT', Optima, Palatino, serif;
+    }
+
+    #export-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 24px;
+      background: rgba(20,20,20,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #333;
+    }
+
+    #export-btn {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      padding: 9px 24px;
+      background: #e8a04a;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #export-btn:hover { background: #f0b060; }
+    #export-btn:disabled { opacity: 0.5; cursor: default; }
+
+    #export-status {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 13px;
+      color: #888;
+      min-width: 180px;
+    }
+
+    .slide-label {
+      color: #666;
+      font-size: 12px;
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: -28px;
+    }
+
+    .slide {
+      width: 1456px;
+      height: 816px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .slide .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* ── Title Slide ───────────────────────────────────── */
+
+    .title-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.6);
+    }
+
+    .title-slide .series {
+      font-size: 38px;
+      font-weight: 300;
+      font-style: italic;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+
+    .title-slide .divider {
+      width: 380px;
+      height: 1px;
+      background: rgba(255,255,255,0.55);
+      margin-bottom: 22px;
+    }
+
+    .title-slide .title {
+      font-size: 82px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-align: center;
+      margin-bottom: 20px;
+      line-height: 1.1;
+    }
+
+    .title-slide .scripture-ref {
+      font-size: 34px;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Scripture / Special Slide ─────────────────────── */
+
+    .scripture-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 110px;
+      color: white;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.7);
+    }
+
+    .scripture-slide .verse-text {
+      font-size: 52px;
+      font-weight: 400;
+      line-height: 1.55;
+      letter-spacing: 0.01em;
+    }
+
+    .scripture-slide .verse-ref {
+      position: absolute;
+      bottom: 52px;
+      right: 80px;
+      font-size: 28px;
+      font-weight: 300;
+      font-style: italic;
+      color: rgba(255,255,255,0.85);
+      text-shadow: 0 1px 5px rgba(0,0,0,0.8);
+    }
+
+    /* ── Main Point Slide ──────────────────────────────── */
+
+    .main-point-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: white;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    .main-point-slide .qualifier {
+      font-size: 48px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .main-point-slide .statement {
+      font-size: 80px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-align: center;
+      line-height: 1.15;
+    }
+
+    /* ── Sub-point Slide ───────────────────────────────── */
+
+    .sub-point-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 130px;
+      color: white;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.75);
+    }
+
+    .sub-point-slide .points {
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    .sub-point-slide .point {
+      font-size: 48px;
+      font-weight: 400;
+      line-height: 1.4;
+    }
+
+    .emphasis {
+      text-shadow:
+        0 0 12px rgba(255,235,200,0.95),
+        0 0 28px rgba(255,210,150,0.7),
+        0 0 50px rgba(255,190,100,0.4);
+    }
+
+    .sub-point-slide .section-label {
+      position: absolute;
+      bottom: 16px;
+      left: 52px;
+      font-size: 32px;
+      font-weight: 300;
+      font-style: italic;
+      color: rgba(255,255,255,0.7);
+      text-shadow: 0 1px 5px rgba(0,0,0,0.8);
+    }
+  </style>
+</head>
+<body>
+
+<div id="export-bar">
+  <button id="export-btn" onclick="exportSlides()">Export Slides as JPEG</button>
+  <span id="export-status">Open via http://localhost:3000 for export to work.</span>
+</div>
+
+<!-- ①  Title ─────────────────────────────────────────── -->
+<div class="slide-label">Slide 1 — Title</div>
+<div class="slide title-slide">
+  <img class="bg" src="sermon-sunrise-mountains/title.jpeg" alt="">
+  <div class="content">
+    <div class="series">The New of a New Creation</div>
+    <div class="divider"></div>
+    <div class="title">A New Destination</div>
+    <div class="scripture-ref">2 Corinthians 5:1–9</div>
+  </div>
+</div>
+
+<!-- ②  Hebrews 9:27–28 (special scripture slide) ──────── -->
+<div class="slide-label">Slide 2 — Hebrews 9:27–28 (special)</div>
+<div class="slide scripture-slide">
+  <img class="bg" src="sermon-sunrise-mountains/main-point.jpeg" alt="">
+  <div class="content">
+    <div class="verse-text">
+      And as it is appointed for men to die once,<br>
+      but after this the judgment—<br>
+      so Christ was offered once<br>
+      to bear the sins of many.
+    </div>
+  </div>
+  <div class="verse-ref">Hebrews 9:27–28 NKJV</div>
+</div>
+
+<!-- ③  2 Corinthians 5:17 (series key verse) ──────────── -->
+<div class="slide-label">Slide 3 — 2 Corinthians 5:17 (series key verse)</div>
+<div class="slide scripture-slide">
+  <img class="bg" src="sermon-sunrise-mountains/main-point.jpeg" alt="">
+  <div class="content">
+    <div class="verse-text">
+      Therefore, if anyone is in Christ,<br>
+      he is a new creation;<br>
+      old things have passed away;<br>
+      behold, all things have become new.
+    </div>
+  </div>
+  <div class="verse-ref">2 Corinthians 5:17 NKJV</div>
+</div>
+
+<!-- ④  Main Point I ───────────────────────────────────── -->
+<div class="slide-label">Slide 4 — Main Point I</div>
+<div class="slide main-point-slide">
+  <img class="bg" src="sermon-sunrise-mountains/main-point.jpeg" alt="">
+  <div class="content">
+    <div class="qualifier">For the Believer,</div>
+    <div class="statement">Our New Destination<br>is Our Final Destination.</div>
+  </div>
+</div>
+
+<!-- ⑤  Sub-point A ────────────────────────────────────── -->
+<div class="slide-label">Slide 5 — Sub-point A</div>
+<div class="slide sub-point-slide">
+  <img class="bg" src="sermon-sunrise-mountains/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">Our Final Destination is reached through a <span class="emphasis">Spiritual Renewal</span>.</div>
+    </div>
+  </div>
+  <div class="section-label">Our Final Destination</div>
+</div>
+
+<!-- ⑥  Sub-point B ────────────────────────────────────── -->
+<div class="slide-label">Slide 6 — Sub-point B</div>
+<div class="slide sub-point-slide">
+  <img class="bg" src="sermon-sunrise-mountains/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">Our Final Destination is realized with an <span class="emphasis">Eternal Reward</span>.</div>
+    </div>
+  </div>
+  <div class="section-label">Our Final Destination</div>
+</div>
+
+<!-- ⑦  Sub-sub-point 1 (alone) ────────────────────────── -->
+<div class="slide-label">Slide 7 — Sub-sub-point 1</div>
+<div class="slide sub-point-slide">
+  <img class="bg" src="sermon-sunrise-mountains/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">1. Our eternal reward is a <span class="emphasis">supernatural body</span>.</div>
+    </div>
+  </div>
+  <div class="section-label">An Eternal Reward</div>
+</div>
+
+<!-- ⑧  Sub-sub-points 1 & 2 (stacked) ────────────────── -->
+<div class="slide-label">Slide 8 — Sub-sub-points 1 &amp; 2 (stacked)</div>
+<div class="slide sub-point-slide">
+  <img class="bg" src="sermon-sunrise-mountains/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">1. Our eternal reward is a <span class="emphasis">supernatural body</span>.</div>
+      <div class="point">2. Our Eternal Reward is an <span class="emphasis">Assured Presence</span>.</div>
+    </div>
+  </div>
+  <div class="section-label">An Eternal Reward</div>
+</div>
+
+
+<script>
+async function exportSlides() {
+  const btn = document.getElementById('export-btn');
+  const status = document.getElementById('export-status');
+  const slides = document.querySelectorAll('.slide');
+
+  btn.disabled = true;
+  status.textContent = `Exporting 0 of ${slides.length}…`;
+
+  for (let i = 0; i < slides.length; i++) {
+    status.textContent = `Exporting ${i + 1} of ${slides.length}…`;
+
+    const canvas = await html2canvas(slides[i], {
+      width: slides[i].offsetWidth,
+      height: slides[i].offsetHeight,
+      scale: 1,
+      useCORS: true,
+      logging: false
+    });
+
+    await new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Slide${i + 1}.jpeg`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        resolve();
+      }, 'image/jpeg', 0.95);
+    });
+
+    // Small pause so the browser doesn't swallow rapid downloads
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
+  status.textContent = `✓ ${slides.length} slides exported.`;
+  btn.disabled = false;
+}
+</script>
+
+</body>
+</html>
