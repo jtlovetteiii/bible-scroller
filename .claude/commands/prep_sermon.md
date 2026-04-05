@@ -20,12 +20,19 @@ IMPORTANT: When creating the JSON file, you MUST properly escape all double quot
 
 IMPORTANT: Scripture passages in the outline often contain verse numbers embedded within the text (e.g., "...of His glory. 32 All the nations will be gathered..."). You MUST remove these inline verse numbers from the text field. Only the actual Scripture words should remain—no verse markers or numbers. For example, "...of His glory. 32 All the nations will be gathered..." should become "...of His glory. All the nations will be gathered..." The verse numbers serve as markers in the outline but should not appear in the final presentation.
 
-IMPORTANT: Automatically identify and mark the words of Jesus Christ in red. When a passage contains direct quotes from Jesus, wrap those words in `<span class="words-of-christ">` tags. This includes:
-- ONLY passages from the New Testament (Matthew, Mark, Luke, John, Acts, Revelation, etc.) that contain Jesus' spoken words
-- Do NOT mark any text in Old Testament passages (Genesis through Malachi) as words of Christ
-- Typically, Jesus' words are already indicated by quotation marks in the text
-- The entire quoted statement should be wrapped, including the quotation marks
+IMPORTANT: Marking words of Jesus Christ is a SECOND PASS after the JSON is complete. Follow this two-pass workflow:
+
+**Pass 1**: Generate the complete JSON file with all passages and media — no `words-of-christ` markup yet. Show the user the completed file.
+
+**Pass 2**: Go back through each NT passage and add `<span class="words-of-christ">` tags where appropriate. Rules:
+- ONLY in New Testament passages (Matthew, Mark, Luke, John, Acts, Revelation, etc.)
+- Do NOT mark any text in Old Testament passages (Genesis through Malachi)
+- If a passage is clearly attributed to Jesus by context (e.g. "He said to them", "Jesus answered", "He answered and said"), wrap the full spoken content — do not require explicit quotation marks in the outline text
+- Parables told by Jesus: wrap the entire quoted parable
+- When a passage contains multiple speakers, only wrap Jesus' portion
+- The entire spoken statement should be wrapped, including any surrounding quotation marks
 - Example: `<span class="words-of-christ">"I am the way, the truth, and the life."</span>`
+- If a case is ambiguous, ask the user rather than guessing
 
 IMPORTANT: Formatting requirements for each passage:
 - Always capitalize the first letter of each passage text, even if it appears lowercase in the outline
