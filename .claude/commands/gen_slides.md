@@ -14,10 +14,12 @@ Your job is narrow: **generate only the `<div class="slide">...</div>` elements*
 ## Input
 
 The argument provides two things:
-1. **Date** — e.g. `2026-03-01`. Used to locate the full outline at `outlines/YYYY-MM-DD_full.docx` and to write the output at `passages/YYYY-MM-DD/slides-preview.html`.
+1. **Date** — e.g. `2026-03-01`. Used to write the output at `passages/YYYY-MM-DD/slides-preview.html`.
 2. **Template folder** — e.g. `templates/sermon-sunrise-mountains`. Contains three background images: `title.jpeg`, `main-point.jpeg`, and `sub-point.jpeg`.
 
-Read the full outline using: `pandoc "outlines/YYYY-MM-DD_full.docx" -t plain`
+**Before reading the outline**, list all files in `outlines/` that match the date (e.g. `outlines/2026-03-01_*.docx`) and ask the user which one to use. The pastor may have multiple variants (full outline, points only, verses only) and the right file changes week to week.
+
+Read the chosen outline using: `pandoc "outlines/FILENAME.docx" -t plain`
 
 ## Output
 
@@ -119,7 +121,23 @@ One or more per lettered sub-point (A, B, C…) and numbered sub-sub-point (1, 2
 
 **Section label**: a short (2–4 word) name derived from the parent main point, shown at the bottom-left of every sub-point slide. It stays consistent across all sub-points under the same main point.
 
+**Lettered sub-point header slides** (A, B, C…): do not include the letter prefix. Center the text horizontally and vertically by adding `style="align-items: center; text-align: center;"` to the `.content` div.
+
+```html
+<div class="slide sub-point-slide">
+  <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="content" style="align-items: center; text-align: center;">
+    <div class="points">
+      <div class="point">The Road of <span class="emphasis">Betrayal</span></div>
+    </div>
+  </div>
+  <div class="section-label">PARENT SECTION NAME</div>
+</div>
+```
+
 **Text length**: prefer single-line text. Use `<br>` only if the line is genuinely too long to fit (roughly more than ~55 characters).
+
+**Long-point font override**: if a specific point is too long to fit on one line at the default size, apply an inline `style="font-size: Npx"` to just that `.point` div. Apply the same override on every stacked slide that contains that point so the layout stays consistent.
 
 **Emphasis**: wrap the concluding key noun phrase in `<span class="emphasis">`. This is usually:
 - The phrase after "through a", "with an", "is a", "is an", etc.
@@ -138,25 +156,47 @@ When two or more consecutive sub-points are closely related, they may be "stacke
 
 **Always ask the user** whether to stack sub-points before generating. This decision changes week to week depending on how the pastor intends to deliver the content.
 
-Example of a stacked pair:
+**Position stability**: when stacking, each point must occupy the same position across every slide in the sequence. Use `visibility: hidden` (not `display: none`) on unrevealed points — they remain invisible but still take up space, so the layout never shifts as new points appear.
+
+Example of a stacked group of three:
 ```html
-<!-- First: point 1 alone -->
+<!-- Slide 1: point 1 visible; 2 & 3 hold space invisibly -->
 <div class="slide sub-point-slide">
-  ...
-  <div class="points">
-    <div class="point">1. Point one text.</div>
+  <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">1. Point one text.</div>
+      <div class="point" style="visibility: hidden">2. Point two text with <span class="emphasis">key phrase</span>.</div>
+      <div class="point" style="visibility: hidden">3. Point three text.</div>
+    </div>
   </div>
-  ...
+  <div class="section-label">SECTION NAME</div>
 </div>
 
-<!-- Then: points 1 and 2 together -->
+<!-- Slide 2: points 1 & 2 visible; 3 holds space invisibly -->
 <div class="slide sub-point-slide">
-  ...
-  <div class="points">
-    <div class="point">1. Point one text.</div>
-    <div class="point">2. Point two text with <span class="emphasis">key phrase</span>.</div>
+  <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">1. Point one text.</div>
+      <div class="point">2. Point two text with <span class="emphasis">key phrase</span>.</div>
+      <div class="point" style="visibility: hidden">3. Point three text.</div>
+    </div>
   </div>
-  ...
+  <div class="section-label">SECTION NAME</div>
+</div>
+
+<!-- Slide 3: all points visible -->
+<div class="slide sub-point-slide">
+  <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="content">
+    <div class="points">
+      <div class="point">1. Point one text.</div>
+      <div class="point">2. Point two text with <span class="emphasis">key phrase</span>.</div>
+      <div class="point">3. Point three text.</div>
+    </div>
+  </div>
+  <div class="section-label">SECTION NAME</div>
 </div>
 ```
 
