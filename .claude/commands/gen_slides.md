@@ -91,14 +91,14 @@ One per Roman-numeral main point. Use `main-point.jpeg`.
   <img class="bg" src="/TEMPLATE_FOLDER/main-point.jpeg" alt="">
   <div class="content">
     <div class="qualifier">QUALIFIER PHRASE,</div>
-    <div class="statement">CORE STATEMENT.</div>
+    <div class="statement">CORE STATEMENT</div>
   </div>
 </div>
 ```
 
 Split the main point into two lines:
 - **Qualifier** (lighter weight): a short introductory phrase, e.g. "For the Believer,"
-- **Statement** (bold): the core claim, e.g. "Our New Destination is Our Final Destination."
+- **Statement** (bold): the core claim, e.g. "Our New Destination is Our Final Destination" — no trailing period.
 
 If the statement is long, use `<br>` to break it at a natural phrase boundary.
 
