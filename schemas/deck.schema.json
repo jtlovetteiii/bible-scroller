@@ -1,0 +1,244 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jtlovetteiii/bible-scroller/schemas/deck.schema.json",
+  "title": "Service Deck",
+  "description": "Structured description of one Sunday's non-sermon service slides. The model emits this; scripts/build-deck.js renders the HTML. Everything mechanical (slide numbering, backgrounds, scrims, seasons, stanza splitting, escaping) is the script's job, NOT the model's.",
+  "type": "object",
+  "required": ["date", "segments"],
+  "additionalProperties": false,
+  "properties": {
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Service date. Drives the default output path (passages/YYYY-MM-DD/service-preview.html) and the default season."
+    },
+    "season": {
+      "type": "string",
+      "enum": ["spring", "summer", "fall", "winter"],
+      "description": "Optional override for the seasonal background variants. Default is derived from the month of `date`: Dec-Feb winter, Mar-May spring, Jun-Aug summer, Sep-Nov fall."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text operator note. Never rendered onto a slide; echoed in the report."
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The running order, in order. Each segment expands to one or more slides.",
+      "items": { "$ref": "#/definitions/segment" }
+    }
+  },
+
+  "definitions": {
+    "segment": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "preshow",
+            "prelude",
+            "baptism",
+            "graduation",
+            "welcome",
+            "song",
+            "special_music",
+            "video",
+            "closing_prayer"
+          ]
+        },
+        "background": {
+          "type": "string",
+          "description": "Optional override of the segment's default background. A bare filename in templates/service/ (e.g. \"praise-2.png\"). The file must exist."
+        },
+        "scrim": {
+          "type": "boolean",
+          "description": "Optional override of the automatic scrim. By default a scrim is emitted only for the bright/busy backgrounds (choir.png, baptism.png, graduation.png)."
+        }
+      },
+      "allOf": [
+        { "$ref": "#/definitions/preshow" },
+        { "$ref": "#/definitions/prelude" },
+        { "$ref": "#/definitions/baptism" },
+        { "$ref": "#/definitions/graduation" },
+        { "$ref": "#/definitions/song" },
+        { "$ref": "#/definitions/specialMusic" },
+        { "$ref": "#/definitions/video" }
+      ]
+    },
+
+    "preshow": {
+      "description": "welcome-text-{season}. 1 plain slide by default.",
+      "if": { "properties": { "type": { "const": "preshow" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1,
+            "description": "How many identical preshow slides to emit."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "prelude": {
+      "description": "prelude.png. 1 song-title slide (title only, no hymn number). Lyrics are never emitted for a prelude.",
+      "if": { "properties": { "type": { "const": "prelude" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "song": {
+            "type": "string",
+            "description": "Song slug in songs/ (filename without .md). Used only for its title."
+          },
+          "title": {
+            "type": "string",
+            "description": "Literal title, when the piece is not in the song library. One of `song` or `title` is required."
+          },
+          "performer": {
+            "type": "string",
+            "description": "Optional performer, shown under the title."
+          }
+        },
+        "additionalProperties": false,
+        "anyOf": [{ "required": ["song"] }, { "required": ["title"] }]
+      }
+    },
+
+    "baptism": {
+      "description": "baptism.png + scrim. 1 hero slide, bottom-right.",
+      "if": { "properties": { "type": { "const": "baptism" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "names": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Name(s) being baptized. Joined with ' & '. If absent, the slide reads \"Baptism\"."
+          },
+          "text": {
+            "type": "string",
+            "description": "Explicit hero text; overrides `names`."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "graduation": {
+      "description": "graduation.png + scrim. 1 hero slide, centered.",
+      "if": { "properties": { "type": { "const": "graduation" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "text": {
+            "type": "string",
+            "default": "Recognition of Graduates"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "song": {
+      "description": "Hymn / congregational / invitation. Title slide + one lyric slide per section (the script splits an over-long stanza across slides). Lyrics are ALWAYS pulled from songs/<slug>.md — never supplied inline.",
+      "if": { "properties": { "type": { "const": "song" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "song": {
+            "type": "string",
+            "description": "Song slug in songs/ (filename without .md). Required."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["hymn", "praise", "invitation"],
+            "description": "Overrides the song's frontmatter `type` for background selection. hymn/invitation -> hymn-1.png + hymn number; praise -> praise-1.png / praise-2.png alternating across the deck, no number."
+          },
+          "sections": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Ordered list of `## Section` headings to project, repeats and all (e.g. [\"Verse 1\",\"Refrain\",\"Verse 2\",\"Refrain\"]). Omit for all sections in file order. Every name must exist in the song file or the build fails."
+          },
+          "number": {
+            "type": ["integer", "string"],
+            "description": "Overrides the hymnal number from frontmatter."
+          },
+          "title_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "Emit the title slide but no lyric slides (e.g. lyrics not yet confirmed). Reported under `missing`."
+          }
+        },
+        "required": ["song"],
+        "additionalProperties": false
+      }
+    },
+
+    "specialMusic": {
+      "description": "choir.png + scrim. 1 song-title slide with title + performer. Lyrics are NEVER pulled from the library for special music; pass them inline if the operator supplied them.",
+      "if": { "properties": { "type": { "const": "special_music" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "song": {
+            "type": "string",
+            "description": "Song slug, used only for its title. One of `song` or `title` is required."
+          },
+          "title": { "type": "string" },
+          "performer": {
+            "type": "string",
+            "description": "e.g. \"The Lovette Quartet\", \"Calvary Choir\". Absent -> reported under `missing`."
+          },
+          "lyrics": {
+            "type": "array",
+            "description": "Optional operator-supplied stanzas. Each item is one stanza: either a string with newlines, or an array of lines.",
+            "items": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false,
+        "anyOf": [{ "required": ["song"] }, { "required": ["title"] }]
+      }
+    },
+
+    "video": {
+      "description": "black.png. 1 plain slide.",
+      "if": { "properties": { "type": { "const": "video" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "label": {
+            "type": "string",
+            "default": "Video",
+            "description": "Preview-chrome label only. Nothing is rendered on the slide."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

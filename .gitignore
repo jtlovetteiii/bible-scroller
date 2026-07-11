@@ -17,6 +17,20 @@ outlines/*.docx
 # Environment variables
 .env
 
+# Secrets — Gmail OAuth client + refresh token, Claude subscription token
+token.json
+gmail_credentials.json
+*credentials*.json
+*token*.json
+
+# Python (agent/)
+__pycache__/
+*.py[cod]
+.venv/
+agent/state.db
+agent/spike/.session_id
+.pytest_cache/
+
 # OS files
 .DS_Store
 Thumbs.db
