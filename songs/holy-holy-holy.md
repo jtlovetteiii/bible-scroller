@@ -1,0 +1,34 @@
+---
+title: Holy, Holy, Holy
+type: hymn
+source: https://hymnary.org/hymn/BH1991/2
+hymnal: BH1991
+number: 2
+author: Reginald Heber
+public_domain: true
+verified: true
+---
+
+## Verse 1
+Holy, holy, holy! Lord God Almighty!
+Early in the morning our song shall rise to Thee;
+Holy, holy, holy! merciful and mighty!
+God in three Persons, blessed Trinity!
+
+## Verse 2
+Holy, holy, holy! all the saints adore Thee,
+Casting down their golden crowns around the glassy sea;
+Cherubim and seraphim falling down before Thee,
+Which wert, and art, and evermore shalt be.
+
+## Verse 3
+Holy, holy, holy! though the darkness hide Thee,
+Though the eye of sinful man Thy glory may not see,
+Only Thou art holy; there is none beside Thee
+Perfect in power, in love, and purity.
+
+## Verse 4
+Holy, holy, holy! Lord God Almighty!
+All Thy works shall praise Thy name, in earth, and sky, and sea;
+Holy, holy, holy! merciful and mighty!
+God in three Persons, blessed Trinity!

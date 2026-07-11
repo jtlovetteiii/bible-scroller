@@ -2,11 +2,11 @@
   "head": "refs/heads/main",
   "remotes": {},
   "backups": {
-    "backup_export": {
-      "name": "backup_export",
+    "default": {
+      "name": "default",
       "url": "file:///Users/thomas/Documents/Projects/bible-scroller/.beads/backup",
       "fetch_specs": [
-        "refs/heads/*:refs/remotes/backup_export/*"
+        "refs/heads/*:refs/remotes/default/*"
       ],
       "params": {}
     }

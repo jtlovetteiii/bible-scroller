@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Service Slide Preview</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a1a;
+      padding: 48px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      font-family: 'Optima', 'Optima Nova LT', Optima, Palatino, serif;
+    }
+
+    #export-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 24px;
+      background: rgba(20,20,20,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #333;
+    }
+
+    #export-btn {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      padding: 9px 24px;
+      background: #e8a04a;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #export-btn:hover { background: #f0b060; }
+    #export-btn:disabled { opacity: 0.5; cursor: default; }
+
+    #export-status {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 13px;
+      color: #888;
+      min-width: 180px;
+    }
+
+    .slide-label {
+      color: #666;
+      font-size: 12px;
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: -28px;
+    }
+
+    /* A label variant that flags a slide as needing human verification */
+    .slide-label.unverified { color: #d98c3a; }
+
+    .slide {
+      width: 1456px;
+      height: 816px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .slide .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Dark scrim for busy / bright backgrounds (e.g. choir stained glass)
+       so white text stays legible. Add <div class="scrim"></div> after .bg. */
+    .slide .scrim {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%,
+                  rgba(0,0,0,0.55) 0%,
+                  rgba(0,0,0,0.35) 55%,
+                  rgba(0,0,0,0.12) 100%);
+    }
+
+    /* ── Song Title Slide (prelude, choir, hymn/praise announce) ── */
+
+    .song-title-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: white;
+      text-align: center;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.75);
+    }
+
+    /* Center stays clean: just the song/hymn title. */
+    .song-title-slide .title {
+      font-size: 96px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      line-height: 1.1;
+    }
+
+    /* Special-music performer, shown under the title (e.g. "Calvary Choir"). */
+    .song-title-slide .performer {
+      font-size: 42px;
+      font-weight: 300;
+      font-style: italic;
+      letter-spacing: 0.04em;
+      margin-top: 26px;
+      color: rgba(255,255,255,0.92);
+    }
+
+    /* Hymn number, bottom-left corner, styled "# NNN". Hymns only. */
+    .song-title-slide .hymn-number {
+      position: absolute;
+      bottom: 44px;
+      left: 60px;
+      font-size: 52px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    /* ── Hero Slide (baptism, graduation) ───────────────────────── */
+    /* One large word/phrase over a photo. Extra-heavy shadow because the
+       baptism/graduation backgrounds are bright and busy. */
+
+    .hero-slide .hero {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px;
+      color: white;
+      font-size: 128px;
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: 0.01em;
+      text-shadow: 0 3px 14px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.85),
+                   0 0 40px rgba(0,0,0,0.5);
+    }
+
+    /* Bottom-right variant (e.g. "Baptism"). */
+    .hero-slide .hero.br {
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 0 70px 56px 0;
+    }
+
+    /* ── Lyric Slide (one stanza per slide) ─────────────────────── */
+
+    .lyric-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 130px;
+      color: white;
+      text-align: center;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.75);
+    }
+
+    /* 60px is the congregation-projection floor and the proven fit for the
+       longest classic hymn lines (~55 chars) at this padding. Drop below only
+       by splitting a long stanza across slides, never by shrinking past it. */
+    .lyric-slide .lyric {
+      font-size: 60px;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: 0.005em;
+    }
+
+    /* ── Plain Slide (baked-in / no-text backgrounds) ───────────────
+       welcome-text/card/blank-{season}, scripture-emphasis,
+       closing-prayer-text, closing-prayer-blank, black. Image only. */
+
+    .plain-slide { /* background image only, no overlay content */ }
+  </style>
+</head>
+<body>
+
+<div id="export-bar">
+  <button id="export-btn" onclick="exportSlides()">Export Slides as JPEG</button>
+  <span id="export-status">Open via http://localhost:3000 for export to work.</span>
+</div>
+
+<!-- SLIDES -->
+
+<script>
+async function exportSlides() {
+  const btn = document.getElementById('export-btn');
+  const status = document.getElementById('export-status');
+  const slides = document.querySelectorAll('.slide');
+
+  btn.disabled = true;
+  status.textContent = `Exporting 0 of ${slides.length}…`;
+
+  for (let i = 0; i < slides.length; i++) {
+    status.textContent = `Exporting ${i + 1} of ${slides.length}…`;
+
+    const canvas = await html2canvas(slides[i], {
+      width: slides[i].offsetWidth,
+      height: slides[i].offsetHeight,
+      scale: 1,
+      useCORS: true,
+      logging: false
+    });
+
+    await new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Slide${String(i + 1).padStart(2, '0')}.jpeg`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        resolve();
+      }, 'image/jpeg', 0.95);
+    });
+
+    // Small pause so the browser doesn't swallow rapid downloads
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
+  status.textContent = `✓ ${slides.length} slides exported.`;
+  btn.disabled = false;
+}
+</script>
+
+</body>
+</html>

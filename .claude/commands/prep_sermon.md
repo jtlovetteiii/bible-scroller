@@ -20,19 +20,26 @@ IMPORTANT: When creating the JSON file, you MUST properly escape all double quot
 
 IMPORTANT: Scripture passages in the outline often contain verse numbers embedded within the text (e.g., "...of His glory. 32 All the nations will be gathered..."). You MUST remove these inline verse numbers from the text field. Only the actual Scripture words should remain—no verse markers or numbers. For example, "...of His glory. 32 All the nations will be gathered..." should become "...of His glory. All the nations will be gathered..." The verse numbers serve as markers in the outline but should not appear in the final presentation.
 
-IMPORTANT: Marking words of Jesus Christ is a SECOND PASS after the JSON is complete. Follow this two-pass workflow:
+IMPORTANT: Marking words of Jesus Christ and Old Testament quotations requires additional passes after the JSON is complete. Follow this three-pass workflow:
 
-**Pass 1**: Generate the complete JSON file with all passages and media — no `words-of-christ` markup yet. Show the user the completed file.
+**Pass 1**: Generate the complete JSON file with all passages and media — no markup yet. Show the user the completed file.
 
 **Pass 2**: Go back through each NT passage and add `<span class="words-of-christ">` tags where appropriate. Rules:
 - ONLY in New Testament passages (Matthew, Mark, Luke, John, Acts, Revelation, etc.)
 - Do NOT mark any text in Old Testament passages (Genesis through Malachi)
 - If a passage is clearly attributed to Jesus by context (e.g. "He said to them", "Jesus answered", "He answered and said"), wrap the full spoken content — do not require explicit quotation marks in the outline text
+- In the Gospels, Jesus often speaks in extended discourses spanning many verses (e.g., the Nicodemus discourse John 3:10–21, the Farewell Discourse John 14–17). If a verse falls inside such a discourse, it is Jesus' words even if that specific verse has no "Jesus said" introduction
 - Parables told by Jesus: wrap the entire quoted parable
 - When a passage contains multiple speakers, only wrap Jesus' portion
-- The entire spoken statement should be wrapped, including any surrounding quotation marks
+- Always wrap Christ's words in quotation marks inside the span, even when the entire passage is His words. If the text doesn't already have them, add them
 - Example: `<span class="words-of-christ">"I am the way, the truth, and the life."</span>`
 - If a case is ambiguous, ask the user rather than guessing
+
+**Pass 3**: Go back through NT passages and mark embedded Old Testament quotations with `<span class="words-of-quote">`. Rules:
+- Triggered by introductory phrases like "it is written:", "as it is written,", "He says:", "the Scripture says:", followed by a quoted block
+- Wrap the quoted text including its quotation marks in the span
+- Example: `as it is written, <span class="words-of-quote">"The just shall live by faith."</span>`
+- Only applies within NT passages — do not mark quotes within OT passages
 
 IMPORTANT: Formatting requirements for each passage:
 - Always capitalize the first letter of each passage text, even if it appears lowercase in the outline
