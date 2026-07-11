@@ -79,8 +79,17 @@ reply. Fetches **metadata only**. Emits a list of `{threadId, msgId}`.
 Owns all cross-run state in SQLite:
 
 ```
-threadId → { session_id, last_processed_msgId, status, updated_at }
+threads(threadId → { session_id, last_processed_msgId, status, updated_at })
+processed_messages(msgId → { threadId, processed_at })
 ```
+
+**Deviation from the original design (implemented 2026-07-11):** a second table
+was added. `last_processed_msgId` alone cannot answer "have we handled message
+A?" once message B lands on top of it — and the gate legitimately re-emits every
+message in the lookback window on every tick. With only that column, an older
+message reappearing would be reprocessed and would send a **duplicate reply**.
+`processed_messages` is the authoritative idempotency ledger; the original column
+is retained as a summary view.
 
 For each actionable thread it (a) skips messages already acted on, (b) skips
 in-flight threads via a **transactional claim**, and (c) resolves the thread to
