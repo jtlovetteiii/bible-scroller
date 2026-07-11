@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import functools
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -37,16 +38,32 @@ def load_credentials(*, allow_interactive: bool = False) -> Credentials:
     if creds and creds.valid:
         return creds
 
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        config.gmail_token_path.write_text(creds.to_json())
-        return creds
+    if creds and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            config.gmail_token_path.write_text(creds.to_json())
+            return creds
+        except RefreshError as exc:
+            # A revoked/expired refresh token raises `invalid_grant`. That is the
+            # normal state of a stale token.json — and the exact case someone runs
+            # authorize to fix — so don't die here: fall through to consent and
+            # discard the dead token. (Google expires refresh tokens after 7 days
+            # while the OAuth app's publishing status is still "Testing".)
+            if not allow_interactive:
+                raise RuntimeError(
+                    f"Gmail refresh token at {config.gmail_token_path} is dead "
+                    f"({exc}). Re-run `uv run python -m email_agent.authorize`."
+                ) from exc
+            creds = None
 
     if not allow_interactive:
         raise RuntimeError(
             f"No valid Gmail credentials at {config.gmail_token_path} and interactive "
             "consent is disabled. Run `uv run python -m email_agent.authorize` once."
         )
+
+    # Stale token would otherwise shadow the new one on the next load.
+    config.gmail_token_path.unlink(missing_ok=True)
 
     flow = InstalledAppFlow.from_client_secrets_file(
         str(config.gmail_credentials_path), GMAIL_SCOPES

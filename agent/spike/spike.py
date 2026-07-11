@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from claude_agent_sdk import (  # noqa: E402
     AssistantMessage,
+    RateLimitEvent,
     ClaudeAgentOptions,
     ResultMessage,
     SystemMessage,
@@ -42,11 +43,12 @@ MODEL = os.getenv("AGENT_MODEL", "claude-sonnet-5")
 SECRET = "the invitation hymn is Just As I Am, hymn number 417"
 
 
-async def _run(prompt: str, **opts) -> tuple[str, str | None, ResultMessage | None]:
-    """Run one query. Returns (assistant text, session_id, result message)."""
+async def _run(prompt: str, **opts) -> tuple[str, str | None, ResultMessage | None, str | None]:
+    """Run one query. Returns (assistant text, session_id, result, rate_limit_type)."""
     text: list[str] = []
     session_id: str | None = None
     result: ResultMessage | None = None
+    rate_limit_type: str | None = None
 
     async for msg in query(
         prompt=prompt,
@@ -57,6 +59,9 @@ async def _run(prompt: str, **opts) -> tuple[str, str | None, ResultMessage | No
             sid = (msg.data or {}).get("session_id")
             if sid:
                 session_id = sid
+        elif isinstance(msg, RateLimitEvent):
+            info = getattr(msg, "rate_limit_info", msg)
+            rate_limit_type = getattr(info, "rate_limit_type", None)
         elif isinstance(msg, AssistantMessage):
             for block in msg.content:
                 if isinstance(block, TextBlock):
@@ -65,17 +70,30 @@ async def _run(prompt: str, **opts) -> tuple[str, str | None, ResultMessage | No
             result = msg
             session_id = session_id or getattr(msg, "session_id", None)
 
-    return "\n".join(text).strip(), session_id, result
+    return "\n".join(text).strip(), session_id, result, rate_limit_type
 
 
-def _cost(result: ResultMessage | None) -> str:
-    if result is None:
-        return "no result message"
+#: Rate-limit windows that only a Claude subscription has. A pay-per-token API
+#: account is limited per-minute (tokens/requests), never on a five-hour or
+#: seven-day window — so seeing one of these is positive proof the run was billed
+#: to the subscription.
+SUBSCRIPTION_WINDOWS = {"five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"}
+
+
+def _billing_verdict(rate_limit_type: str | None, result: ResultMessage | None) -> tuple[bool, str]:
+    """Decide whether the run was billed to the subscription.
+
+    NOTE: do NOT use `total_cost_usd` for this. Claude Code reports a cost
+    *estimate* on every run regardless of billing mode, so a non-zero cost says
+    nothing about which account paid. The rate-limit window is the real signal.
+    """
     usd = getattr(result, "total_cost_usd", None)
-    # A subscription-billed run reports no per-token cost; an API-key run does.
-    if usd in (None, 0, 0.0):
-        return "total_cost_usd absent/zero -> consistent with SUBSCRIPTION billing"
-    return f"total_cost_usd={usd} -> looks like API-KEY (pay-per-token) billing!"
+    note = f"(total_cost_usd={usd} is an estimate, reported either way — ignore it)"
+    if rate_limit_type in SUBSCRIPTION_WINDOWS:
+        return True, f"rate_limit_type={rate_limit_type!r} -> SUBSCRIPTION billing {note}"
+    if rate_limit_type is None:
+        return False, f"no RateLimitEvent seen — cannot confirm subscription billing {note}"
+    return False, f"rate_limit_type={rate_limit_type!r} is not a subscription window {note}"
 
 
 async def check_auth() -> bool:
@@ -83,19 +101,22 @@ async def check_auth() -> bool:
     assert_subscription_auth()  # raises if ANTHROPIC_API_KEY set / token missing
     print("  env guard passed: ANTHROPIC_API_KEY unset, CLAUDE_CODE_OAUTH_TOKEN set")
 
-    text, sid, result = await _run("Reply with exactly the word: PONG")
+    text, sid, result, rlt = await _run("Reply with exactly the word: PONG")
+    billed_to_subscription, why = _billing_verdict(rlt, result)
     print(f"  model     : {MODEL}")
     print(f"  response  : {text[:80]!r}")
     print(f"  session_id: {sid}")
-    print(f"  billing   : {_cost(result)}")
-    ok = "PONG" in text.upper()
+    print(f"  billing   : {why}")
+    # Both must hold: the query worked AND it was billed to the subscription.
+    # Cost control is the entire reason this epic runs on Sonnet.
+    ok = "PONG" in text.upper() and billed_to_subscription
     print(f"  -> {'GREEN' if ok else 'RED'}")
     return ok
 
 
 async def check_session_start() -> bool:
     print("\n=== 2a. SESSION: start (process 1) ===")
-    text, sid, _ = await _run(
+    text, sid, _, _ = await _run(
         f"Remember this for later, it matters: {SECRET}. Just acknowledge briefly."
     )
     if not sid:
@@ -117,7 +138,7 @@ async def check_session_resume() -> bool:
     sid = SESSION_FILE.read_text().strip()
     print(f"  resuming  : {sid}")
 
-    text, new_sid, _ = await _run(
+    text, new_sid, _, _ = await _run(
         "Without any preamble: which hymn did I say was the invitation, "
         "and what is its number?",
         resume=sid,
@@ -138,7 +159,7 @@ async def check_skill() -> bool:
     invisible — this is the single most likely silent failure in the design.
     """
     print("\n=== 3. SKILL: gen_service loads from .claude/ ===")
-    text, _, _ = await _run(
+    text, _, _, _ = await _run(
         "List the names of the custom slash commands/skills you can see from this "
         "project's .claude directory. Just the names, comma separated. Do not run them.",
         setting_sources=["project"],
