@@ -447,16 +447,21 @@ def test_sdk_tools_registered():
     from email_agent.tools import GMAIL_TOOL_NAMES, GMAIL_TOOLS, gmail_tools_server
 
     assert [t.name for t in GMAIL_TOOLS] == [
+        "get_thread",
         "get_message",
         "list_attachments",
         "save_attachment",
         "send_reply",
+        # Declining to reply is a first-class outcome, not the absence of one.
+        "skip_reply",
     ]
     assert GMAIL_TOOL_NAMES == [
+        "mcp__gmail__get_thread",
         "mcp__gmail__get_message",
         "mcp__gmail__list_attachments",
         "mcp__gmail__save_attachment",
         "mcp__gmail__send_reply",
+        "mcp__gmail__skip_reply",
     ]
     server = gmail_tools_server()
     assert server["type"] == "sdk"

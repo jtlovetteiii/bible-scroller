@@ -351,6 +351,55 @@ def build_reply_message(
     return msg
 
 
+def get_thread(
+    thread_id: str,
+    *,
+    service: Any | None = None,
+    store: Any = _DEFAULT,
+) -> dict[str, Any]:
+    """The whole conversation, oldest first, with each message's body.
+
+    The agent should read this before deciding anything. A single message in
+    isolation cannot tell it whether the conversation is finished, whether it has
+    already answered, or whether the newest message even asks for anything.
+
+    `authored_by_agent` is a **hint, not a verdict**. It comes from the local
+    store (messages we recorded at send time), so it is only as good as that
+    store: wipe the DB and every flag reads False. Treat it as corroboration for
+    a judgment the agent should be able to reach from the text anyway — if the
+    last message is plainly our own reply, that should be evident from reading it.
+    """
+    svc = _svc(service)
+    st = _store(store)
+
+    thread = svc.users().threads().get(userId=USER_ID, id=thread_id, format="full").execute()
+    messages = []
+    for raw in thread.get("messages", []):
+        payload = raw.get("payload") or {}
+        headers = _header_map(payload)
+        body, body_mime = extract_body(payload)
+
+        authored = False
+        if st is not None:
+            try:
+                authored = st.is_agent_sent(raw["id"])
+            except Exception:  # noqa: BLE001
+                logger.warning("authorship lookup failed for %s", raw["id"])
+
+        messages.append(
+            {
+                "id": raw["id"],
+                "authored_by_agent": authored,
+                "headers": {n: headers.get(n.lower(), "") for n in WANTED_HEADERS},
+                "body": body,
+                "bodyMimeType": body_mime,
+                "attachmentCount": sum(1 for p in iter_parts(payload) if _is_attachment(p)),
+            }
+        )
+
+    return {"threadId": thread_id, "messageCount": len(messages), "messages": messages}
+
+
 def send_reply(
     thread_id: str,
     body: str,
@@ -496,9 +545,69 @@ async def save_attachment_tool(args: dict[str, Any]) -> dict[str, Any]:
 
 
 @tool(
+    "get_thread",
+    (
+        "Read the ENTIRE conversation, oldest message first, with each message's body. "
+        "Call this FIRST, before deciding anything.\n"
+        "A single message read in isolation cannot tell you whether the conversation is "
+        "already finished, whether you have already answered it, or whether the newest "
+        "message is even asking for anything. The thread can.\n"
+        "Each message carries `authored_by_agent`: true means our records say WE wrote "
+        "it. Treat that as a hint that corroborates your own reading, not as the whole "
+        "answer — those records can be incomplete, so a message may be ours even when "
+        "the flag is false. Read the text and judge for yourself."
+    ),
+    {
+        "type": "object",
+        "properties": {
+            "thread_id": {"type": "string", "description": "Gmail threadId to read."},
+        },
+        "required": ["thread_id"],
+    },
+)
+async def get_thread_tool(args: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return _ok(get_thread(args["thread_id"]))
+    except Exception as exc:  # noqa: BLE001
+        return _err(f"get_thread failed: {exc}")
+
+
+@tool(
+    "skip_reply",
+    (
+        "Conclude the task WITHOUT sending any email, because no reply is warranted.\n"
+        "This is a legitimate, expected outcome — not a failure. Use it when the newest "
+        "message needs nothing from you: it is a message you yourself wrote; it is a "
+        "bare acknowledgement ('thanks!', 'got it'); or the conversation is simply "
+        "finished.\n"
+        "Every task must end with EITHER send_reply OR skip_reply. Never just stop.\n"
+        "Prefer skip_reply over sending a courtesy reply that adds nothing — a needless "
+        "reply lands in a real person's inbox, and if the reply is to yourself it can "
+        "start a loop of replies to replies."
+    ),
+    {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Briefly, why no reply is needed. Recorded in the logs.",
+            },
+        },
+        "required": ["reason"],
+    },
+)
+async def skip_reply_tool(args: dict[str, Any]) -> dict[str, Any]:
+    reason = args.get("reason", "(none given)")
+    logger.info("agent chose NOT to reply: %s", reason)
+    return _ok({"skipped": True, "reason": reason})
+
+
+@tool(
     "send_reply",
     (
         "Send an email reply that lands INSIDE the original conversation thread.\n"
+        "Only call this if the conversation actually needs a reply — read the whole "
+        "thread with get_thread first. If it does not, call skip_reply instead.\n"
         "Inputs: thread_id (the threadId from get_message — NOT a message id), body "
         "(plain text you have written), attachments (optional list of file paths to "
         "attach).\n"
@@ -533,10 +642,12 @@ async def send_reply_tool(args: dict[str, Any]) -> dict[str, Any]:
 
 
 GMAIL_TOOLS = [
+    get_thread_tool,
     get_message_tool,
     list_attachments_tool,
     save_attachment_tool,
     send_reply_tool,
+    skip_reply_tool,
 ]
 
 #: MCP-qualified names, for `ClaudeAgentOptions(allowed_tools=...)` in the harness.

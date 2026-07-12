@@ -29,33 +29,57 @@ from .tools import GMAIL_TOOL_NAMES, gmail_tools_server
 logger = logging.getLogger(__name__)
 
 SEND_REPLY_TOOL = "mcp__gmail__send_reply"
+SKIP_REPLY_TOOL = "mcp__gmail__skip_reply"
+GET_THREAD_TOOL = "mcp__gmail__get_thread"
+
+#: A run must end in exactly one of these. Both are success; neither is.
+TERMINAL_TOOLS = {SEND_REPLY_TOOL, SKIP_REPLY_TOOL}
 
 SYSTEM_PROMPT = f"""\
 You are an assistant handling email on behalf of the operator who builds the slides \
-for a church service. A message has arrived that is addressed to you. Your job is to \
-work out what is being asked and do it, end to end, without a human in the loop.
+for a church service. Something has arrived on an email thread. Your job is to work out \
+what — if anything — is being asked, and to do it, end to end, without a human in the loop.
 
-You have Gmail tools to read the message, list and save its attachments, and send \
-exactly one reply. You also have this project's skills available as slash commands; \
-read the message first, then decide which (if any) applies. Right now the main one is \
-`gen_service`, which builds a service slide deck from an order of service.
+You have Gmail tools to read the thread, save its attachments, and either reply or \
+deliberately not reply. You also have this project's skills as slash commands; the main \
+one is `gen_service`, which builds a service slide deck from an order of service.
 
-Non-negotiable rules:
+How to work:
 
-1. THERE IS NO INTERACTIVE USER. Never ask a question and wait — nobody will answer, \
-and the run will simply hang. Anything you would have asked becomes a line in your \
-reply instead.
-2. You MUST finish by sending exactly one reply, in-thread, with `{SEND_REPLY_TOOL}`. \
-That reply is the entire product of this run. If you cannot do the work, reply \
-explaining what you need. Never finish silently.
-3. NEVER show the congregation something you are unsure of. If you lack lyrics for a \
+1. FIRST, read the whole conversation with `{GET_THREAD_TOOL}`. Not just the newest \
+message — the thread. You cannot judge what is needed from one message in isolation: you \
+may have already answered it, it may be a message you wrote yourself, or it may be a \
+"thanks!" that closes the conversation out.
+
+2. THEN decide whether the thread actually needs anything from you. This is a real \
+decision and you are expected to make it, not a formality:
+   - It needs a reply -> do the work, then `{SEND_REPLY_TOOL}`.
+   - It needs nothing -> `{SKIP_REPLY_TOOL}` with your reason.
+   Every run must end with exactly one of those two. Never just stop.
+
+   Do NOT reply out of politeness. A reply that adds nothing still lands in a real \
+person's inbox — and if the message you are "replying" to is one of your own, you are \
+talking to yourself and can start an endless loop of replies to replies. When in doubt \
+about whether a reply adds value, skip.
+
+   The thread marks messages you wrote with `authored_by_agent`. That flag is a hint \
+drawn from our local records, and those records can be incomplete — a message can be \
+yours even when the flag says false. So read the text and judge for yourself: if the \
+newest message is plainly your own work (your deck link, your report, your questions), \
+that is the fact that matters, whatever the flag says.
+
+3. THERE IS NO INTERACTIVE USER. Never ask a question and wait — nobody will answer and \
+the run will hang. Anything you would have asked becomes a line in your reply.
+
+4. NEVER show the congregation something you are unsure of. If you lack lyrics for a \
 song, do not invent them: build what you safely can, and ask for the missing lyrics in \
 your reply.
-4. The tools do not convert attachments. If a PDF or Word document arrives, save it and \
+
+5. The tools do not convert attachments. If a PDF or Word document arrives, save it and \
 convert it yourself.
 
-Write the reply as a person would: what you built, a link to it, what you want checked, \
-and what you still need. Not a status dump.
+When you do reply, write as a person would: what you built, a link to it, what you want \
+checked, what you still need. Not a status dump.
 
 The repo is at {REPO_ROOT}. Decks are served at {config.public_base_url}.
 """
@@ -95,7 +119,7 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
     )
 
     new_session_id: str | None = session_id
-    replied = False
+    terminal: set[str] = set()
     result: ResultMessage | None = None
 
     async for message in query(prompt=prompt, options=options):
@@ -105,8 +129,8 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
                 new_session_id = sid
         elif isinstance(message, AssistantMessage):
             for block in message.content:
-                if isinstance(block, ToolUseBlock) and block.name == SEND_REPLY_TOOL:
-                    replied = True
+                if isinstance(block, ToolUseBlock) and block.name in TERMINAL_TOOLS:
+                    terminal.add(block.name)
         elif isinstance(message, ResultMessage):
             result = message
             new_session_id = new_session_id or getattr(message, "session_id", None)
@@ -114,15 +138,25 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
     if result is not None and getattr(result, "is_error", False):
         raise AgentError(f"agent run errored: {getattr(result, 'result', result)!r}")
 
-    # The dispatcher treats our return as the commit point — it marks the message
-    # processed and will never look at it again. Returning without having sent the
-    # reply would strand the request in silence, so this is a hard failure: the
-    # thread goes to `failed`, the claim releases, and the message is retried.
-    if not replied:
+    # A run must end in a deliberate terminal action: it either replied, or it
+    # decided a reply was not warranted. Deciding NOT to reply is a legitimate
+    # outcome, not a failure — that judgment is the agent's to make, and forcing a
+    # reply is what let it answer its own messages in the first place.
+    #
+    # What we still refuse to accept is a run that ends having decided *nothing*.
+    # The dispatcher treats our return as the commit point and will never look at
+    # this message again, so a silent finish means the request is dropped without
+    # anyone noticing. That is a hard failure: the thread goes to `failed`, the
+    # claim releases, and the message is retried.
+    if not terminal:
         raise AgentError(
-            f"agent finished without calling {SEND_REPLY_TOOL} — no reply was sent for "
-            f"message {msg_id}, so the request would be silently dropped."
+            f"agent finished without calling {SEND_REPLY_TOOL} or {SKIP_REPLY_TOOL} for "
+            f"message {msg_id} — it neither replied nor decided not to, so the request "
+            f"would be silently dropped."
         )
+
+    if SKIP_REPLY_TOOL in terminal and SEND_REPLY_TOOL not in terminal:
+        logger.info("thread %s: agent judged that no reply was needed", thread_id)
 
     if new_session_id is None:
         raise AgentError("agent run produced no session_id; cannot resume this thread")

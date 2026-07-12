@@ -54,7 +54,18 @@ CREATE TABLE IF NOT EXISTS processed_messages (
     processed_at REAL NOT NULL
 );
 
+-- Messages the agent itself wrote. Surfaced to the agent as an authorship HINT
+-- (see get_thread), and used by the dispatcher as a cheap runaway-loop guard.
+-- Kept separate from processed_messages because "we wrote it" and "we handled it"
+-- are different facts, even though they currently coincide.
+CREATE TABLE IF NOT EXISTS agent_sent_messages (
+    thread_id TEXT NOT NULL,
+    msg_id    TEXT NOT NULL PRIMARY KEY,
+    sent_at   REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_processed_thread ON processed_messages (thread_id);
+CREATE INDEX IF NOT EXISTS idx_agent_sent_thread ON agent_sent_messages (thread_id);
 """
 
 
@@ -144,6 +155,29 @@ class StateStore:
                 "VALUES (?, ?, ?)",
                 (thread_id, msg_id, time.time()),
             )
+            conn.execute(
+                "INSERT OR IGNORE INTO agent_sent_messages (thread_id, msg_id, sent_at) "
+                "VALUES (?, ?, ?)",
+                (thread_id, msg_id, time.time()),
+            )
+
+    def is_agent_sent(self, msg_id: str) -> bool:
+        """Did WE write this message? Surfaced to the agent as a hint by `get_thread`.
+
+        Deliberately separate from `is_processed`: "we authored it" and "we have
+        handled it" are different facts that happen to coincide today. Keeping them
+        distinct means the agent's view of authorship does not silently change if
+        the bookkeeping semantics of `processed_messages` ever do.
+
+        This is a HINT, not a safety mechanism. It is only as good as the local DB —
+        wipe it and every message reads as not-ours. The agent must be able to reach
+        the same conclusion by reading the thread.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM agent_sent_messages WHERE msg_id = ?", (msg_id,)
+            ).fetchone()
+        return row is not None
 
     # --- the claim ----------------------------------------------------------
 
