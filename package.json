@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build-deck": "node scripts/build-deck.js"
+    "build-deck": "node scripts/build-deck.js",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:update": "UPDATE_GOLDEN=1 node --test \"tests/**/*.test.js\""
   },
   "keywords": [
     "bible",

@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Service Slide Preview</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a1a;
+      padding: 48px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      font-family: 'Optima', 'Optima Nova LT', Optima, Palatino, serif;
+    }
+
+    #export-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 24px;
+      background: rgba(20,20,20,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #333;
+    }
+
+    #export-btn {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      padding: 9px 24px;
+      background: #e8a04a;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #export-btn:hover { background: #f0b060; }
+    #export-btn:disabled { opacity: 0.5; cursor: default; }
+
+    #export-status {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      font-size: 13px;
+      color: #888;
+      min-width: 180px;
+    }
+
+    .slide-label {
+      color: #666;
+      font-size: 12px;
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: -28px;
+    }
+
+    /* A label variant that flags a slide as needing human verification */
+    .slide-label.unverified { color: #d98c3a; }
+
+    .slide {
+      width: 1456px;
+      height: 816px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .slide .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Dark scrim for busy / bright backgrounds (e.g. choir stained glass)
+       so white text stays legible. Add <div class="scrim"></div> after .bg. */
+    .slide .scrim {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%,
+                  rgba(0,0,0,0.55) 0%,
+                  rgba(0,0,0,0.35) 55%,
+                  rgba(0,0,0,0.12) 100%);
+    }
+
+    /* ── Song Title Slide (prelude, choir, hymn/praise announce) ── */
+
+    .song-title-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: white;
+      text-align: center;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.75);
+    }
+
+    /* Center stays clean: just the song/hymn title. */
+    .song-title-slide .title {
+      font-size: 96px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      line-height: 1.1;
+    }
+
+    /* Special-music performer, shown under the title (e.g. "Calvary Choir"). */
+    .song-title-slide .performer {
+      font-size: 42px;
+      font-weight: 300;
+      font-style: italic;
+      letter-spacing: 0.04em;
+      margin-top: 26px;
+      color: rgba(255,255,255,0.92);
+    }
+
+    /* Hymn number, bottom-left corner, styled "# NNN". Hymns only. */
+    .song-title-slide .hymn-number {
+      position: absolute;
+      bottom: 44px;
+      left: 60px;
+      font-size: 52px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    /* ── Hero Slide (baptism, graduation) ───────────────────────── */
+    /* One large word/phrase over a photo. Extra-heavy shadow because the
+       baptism/graduation backgrounds are bright and busy. */
+
+    .hero-slide .hero {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px;
+      color: white;
+      font-size: 128px;
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: 0.01em;
+      text-shadow: 0 3px 14px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.85),
+                   0 0 40px rgba(0,0,0,0.5);
+    }
+
+    /* Bottom-right variant (e.g. "Baptism"). */
+    .hero-slide .hero.br {
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 0 70px 56px 0;
+    }
+
+    /* ── Lyric Slide (one stanza per slide) ─────────────────────── */
+
+    .lyric-slide .content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 130px;
+      color: white;
+      text-align: center;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.75);
+    }
+
+    /* 60px is the congregation-projection floor and the proven fit for the
+       longest classic hymn lines (~55 chars) at this padding. Drop below only
+       by splitting a long stanza across slides, never by shrinking past it. */
+    .lyric-slide .lyric {
+      font-size: 60px;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: 0.005em;
+    }
+
+    /* ── Plain Slide (baked-in / no-text backgrounds) ───────────────
+       welcome-text/card/blank-{season}, scripture-emphasis,
+       closing-prayer-text, closing-prayer-blank, black. Image only. */
+
+    .plain-slide { /* background image only, no overlay content */ }
+  </style>
+</head>
+<body>
+
+<div id="export-bar">
+  <button id="export-btn" onclick="exportSlides()">Export Slides as JPEG</button>
+  <span id="export-status">Open via http://localhost:3000 for export to work.</span>
+</div>
+
+<!-- ── Preshow ── -->
+<div class="slide-label">Slide 1 — Preshow</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/welcome-text-summer.png" alt="">
+</div>
+
+<!-- ── Prelude — O for a Thousand Tongues to Sing ── -->
+<div class="slide-label">Slide 2 — Prelude · O for a Thousand Tongues to Sing</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/prelude.png" alt="">
+  <div class="content">
+    <div class="title">O for a Thousand Tongues to Sing</div>
+  </div>
+</div>
+
+<!-- ── Welcome (text · card · text · scripture) ── -->
+<div class="slide-label">Slide 3 — Welcome</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/welcome-text-summer.png" alt="">
+</div>
+
+<div class="slide-label">Slide 4 — Connection Card</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/welcome-card-summer.png" alt="">
+</div>
+
+<div class="slide-label">Slide 5 — Welcome</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/welcome-text-summer.png" alt="">
+</div>
+
+<div class="slide-label">Slide 6 — Scripture Emphasis</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/scripture-emphasis.png" alt="">
+</div>
+
+<!-- ── Hymn # 2 — Holy, Holy, Holy ── -->
+<div class="slide-label">Slide 7 — Holy, Holy, Holy · Title</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="title">Holy, Holy, Holy</div>
+  </div>
+  <div class="hymn-number"># 2</div>
+</div>
+
+<div class="slide-label">Slide 8 — Holy, Holy, Holy · Verse 1</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Holy, holy, holy! Lord God Almighty!<br>
+      Early in the morning our song shall rise to Thee;<br>
+      Holy, holy, holy! merciful and mighty!<br>
+      God in three Persons, blessed Trinity!
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 9 — Holy, Holy, Holy · Verse 2</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Holy, holy, holy! all the saints adore Thee,<br>
+      Casting down their golden crowns around the glassy sea;<br>
+      Cherubim and seraphim falling down before Thee,<br>
+      Which wert, and art, and evermore shalt be.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 10 — Holy, Holy, Holy · Verse 3</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Holy, holy, holy! though the darkness hide Thee,<br>
+      Though the eye of sinful man Thy glory may not see,<br>
+      Only Thou art holy; there is none beside Thee<br>
+      Perfect in power, in love, and purity.
+    </div>
+  </div>
+</div>
+
+<!-- ── Hymn # 3 — Worthy of Worship — VERIFY ── -->
+<div class="slide-label unverified">Slide 11 — Worthy of Worship · Title (VERIFY)</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="title">Worthy of Worship</div>
+  </div>
+  <div class="hymn-number"># 3</div>
+</div>
+
+<div class="slide-label unverified">Slide 12 — Worthy of Worship · Verse 1 (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Worthy of worship, worthy of praise,<br>
+      Worthy of honor and glory;<br>
+      Worthy of all the glad songs we can sing,<br>
+      Worthy of all of the off'rings we bring.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 13 — Worthy of Worship · Refrain (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      You are worthy, Father, Creator.<br>
+      You are worthy, Savior, Sustainer.<br>
+      You are worthy, worthy and wonderful;<br>
+      Worthy of worship and praise.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 14 — Worthy of Worship · Verse 2 (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Worthy of rev'rence, worthy of fear,<br>
+      Worthy of love and devotion;<br>
+      Worthy of bowing and bending of knees,<br>
+      Worthy of all this and added to these.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 15 — Worthy of Worship · Refrain (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      You are worthy, Father, Creator.<br>
+      You are worthy, Savior, Sustainer.<br>
+      You are worthy, worthy and wonderful;<br>
+      Worthy of worship and praise.
+    </div>
+  </div>
+</div>
+
+<!-- ── Special Music — O What a Savior (performer TBD) ── -->
+<div class="slide-label">Slide 16 — Special Music · O What a Savior</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/choir.png" alt="">
+  <div class="scrim"></div>
+  <div class="content">
+    <div class="title">O What a Savior</div>
+  </div>
+</div>
+
+<!-- ── Praise — Way Maker — VERIFY ── -->
+<div class="slide-label unverified">Slide 17 — Way Maker · Title (VERIFY)</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/praise-1.png" alt="">
+  <div class="content">
+    <div class="title">Way Maker</div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 18 — Way Maker · Verse 1 (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/praise-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      You are here, moving in our midst;<br>
+      I worship You, I worship You.<br>
+      You are here, working in this place;<br>
+      I worship You, I worship You.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 19 — Way Maker · Chorus (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/praise-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Way Maker, Miracle Worker, Promise Keeper,<br>
+      Light in the darkness, my God,<br>
+      That is who You are.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 20 — Way Maker · Verse 2 (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/praise-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      You are here, touching every heart;<br>
+      I worship You, I worship You.<br>
+      You are here, healing every heart;<br>
+      I worship You, I worship You.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label unverified">Slide 21 — Way Maker · Bridge (VERIFY)</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/praise-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      Even when I don't see it, You're working.<br>
+      Even when I don't feel it, You're working.<br>
+      You never stop, You never stop working.
+    </div>
+  </div>
+</div>
+
+<!-- ── Special Music — His Name Is Jesus (performer TBD) ── -->
+<div class="slide-label">Slide 22 — Special Music · His Name Is Jesus</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/choir.png" alt="">
+  <div class="scrim"></div>
+  <div class="content">
+    <div class="title">His Name Is Jesus</div>
+  </div>
+</div>
+
+<!-- ── Invitation Hymn # 301 — I Am Resolved ── -->
+<div class="slide-label">Slide 23 — I Am Resolved · Title</div>
+<div class="slide song-title-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="title">I Am Resolved</div>
+  </div>
+  <div class="hymn-number"># 301</div>
+</div>
+
+<div class="slide-label">Slide 24 — I Am Resolved · Verse 1</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I am resolved no longer to linger,<br>
+      Charmed by the world's delight;<br>
+      Things that are higher, things that are nobler,<br>
+      These have allured my sight.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 25 — I Am Resolved · Refrain</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I will hasten to Him, hasten so glad and free;<br>
+      Jesus, greatest, highest, I will come to Thee.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 26 — I Am Resolved · Verse 2</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I am resolved to go to the Savior,<br>
+      Leaving my sin and strife;<br>
+      He is the true One, He is the just One,<br>
+      He hath the words of life.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 27 — I Am Resolved · Refrain</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I will hasten to Him, hasten so glad and free;<br>
+      Jesus, greatest, highest, I will come to Thee.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 28 — I Am Resolved · Verse 3</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I am resolved to follow the Savior,<br>
+      Faithful and true each day;<br>
+      Heed what He sayeth, do what He willeth,<br>
+      He is the living Way.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 29 — I Am Resolved · Refrain</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I will hasten to Him, hasten so glad and free;<br>
+      Jesus, greatest, highest, I will come to Thee.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 30 — I Am Resolved · Verse 4</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I am resolved to enter the kingdom,<br>
+      Leaving the paths of sin;<br>
+      Friends may oppose me, foes may beset me,<br>
+      Still will I enter in.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 31 — I Am Resolved · Refrain</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I will hasten to Him, hasten so glad and free;<br>
+      Jesus, greatest, highest, I will come to Thee.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 32 — I Am Resolved · Verse 5</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I am resolved, and who will go with me?<br>
+      Come, friends, without delay,<br>
+      Taught by the Bible, led by the Spirit,<br>
+      We'll walk the heav'nly way.
+    </div>
+  </div>
+</div>
+
+<div class="slide-label">Slide 33 — I Am Resolved · Refrain</div>
+<div class="slide lyric-slide">
+  <img class="bg" src="/templates/service/hymn-1.png" alt="">
+  <div class="content">
+    <div class="lyric">
+      I will hasten to Him, hasten so glad and free;<br>
+      Jesus, greatest, highest, I will come to Thee.
+    </div>
+  </div>
+</div>
+
+<!-- ── Closing Prayer ── -->
+<div class="slide-label">Slide 34 — Closing Prayer</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/closing-prayer-text.png" alt="">
+</div>
+
+<div class="slide-label">Slide 35 — Closing Prayer (blank)</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/closing-prayer-blank.png" alt="">
+</div>
+
+<div class="slide-label">Slide 36 — Dismissal</div>
+<div class="slide plain-slide">
+  <img class="bg" src="/templates/service/welcome-blank-summer.png" alt="">
+</div>
+
+
+<script>
+async function exportSlides() {
+  const btn = document.getElementById('export-btn');
+  const status = document.getElementById('export-status');
+  const slides = document.querySelectorAll('.slide');
+
+  btn.disabled = true;
+  status.textContent = `Exporting 0 of ${slides.length}…`;
+
+  for (let i = 0; i < slides.length; i++) {
+    status.textContent = `Exporting ${i + 1} of ${slides.length}…`;
+
+    const canvas = await html2canvas(slides[i], {
+      width: slides[i].offsetWidth,
+      height: slides[i].offsetHeight,
+      scale: 1,
+      useCORS: true,
+      logging: false
+    });
+
+    await new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Slide${String(i + 1).padStart(2, '0')}.jpeg`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        resolve();
+      }, 'image/jpeg', 0.95);
+    });
+
+    // Small pause so the browser doesn't swallow rapid downloads
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
+  status.textContent = `✓ ${slides.length} slides exported.`;
+  btn.disabled = false;
+}
+</script>
+
+</body>
+</html>
