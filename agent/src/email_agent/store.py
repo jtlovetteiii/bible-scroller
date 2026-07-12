@@ -110,12 +110,40 @@ class StateStore:
         return _to_state(row) if row else None
 
     def is_processed(self, msg_id: str) -> bool:
-        """Has this exact message already been fully handled (reply sent)?"""
+        """Has this exact message already been fully handled (reply sent)?
+
+        Also true for messages the agent itself authored — see `mark_agent_sent`.
+        """
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT 1 FROM processed_messages WHERE msg_id = ?", (msg_id,)
             ).fetchone()
         return row is not None
+
+    def mark_agent_sent(self, thread_id: str, msg_id: str) -> None:
+        """Record a message the agent itself sent, so it can never become input.
+
+        THE REPLY LOOP GUARD. Our reply keeps the thread's subject (`Re: AI: …`),
+        so it matches the gate's subject regex just as well as the original did.
+        Left alone, the gate hands the agent its own outgoing mail on the next
+        tick and it replies to itself, forever, burning tokens. (Observed live on
+        2026-07-11 before this existed.)
+
+        Filtering on sender or on the SENT label does NOT work: when the operator
+        emails themselves — exactly how you test this — every message in the
+        thread carries both SENT and INBOX and is from the same address, so our
+        replies are indistinguishable from a real request by any header. The only
+        reliable fact is authorship, which we know because we sent it.
+
+        Recording it as "processed" makes the existing dispatcher check reject it
+        with no new code path.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO processed_messages (thread_id, msg_id, processed_at) "
+                "VALUES (?, ?, ?)",
+                (thread_id, msg_id, time.time()),
+            )
 
     # --- the claim ----------------------------------------------------------
 

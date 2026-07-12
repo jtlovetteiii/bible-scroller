@@ -19,6 +19,7 @@ import base64
 import binascii
 import html
 import json
+import logging
 import mimetypes
 import quopri
 import re
@@ -28,6 +29,9 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
+logger = logging.getLogger(__name__)
+
+from .config import config
 from .gmail_client import gmail_service
 
 USER_ID = "me"
@@ -55,6 +59,19 @@ _QP_HINT = re.compile(rb"=[0-9A-Fa-f]{2}|=\r?\n")
 
 def _svc(service: Any | None):
     return service if service is not None else gmail_service()
+
+
+#: Sentinel: distinguishes "caller passed no store, use the real one" from
+#: "caller explicitly passed None to disable the guard" (only tests should do that).
+_DEFAULT = object()
+
+
+def _store(store: Any):
+    if store is _DEFAULT:
+        from .store import StateStore  # local import: avoids a cycle at module load
+
+        return StateStore(config.state_db_path)
+    return store
 
 
 def b64url_decode(data: str) -> bytes:
@@ -340,18 +357,40 @@ def send_reply(
     attachments: list[str | Path] | None = None,
     *,
     service: Any | None = None,
+    store: Any = _DEFAULT,
 ) -> dict[str, Any]:
     """Reply in-thread to the latest message of `thread_id`. Returns the sent message."""
     svc = _svc(service)
+    store = _store(store)
     parent = _thread_parent_headers(thread_id, service=svc)
     msg = build_reply_message(parent, body, attachments)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    return (
+    sent = (
         svc.users()
         .messages()
         .send(userId=USER_ID, body={"raw": raw, "threadId": thread_id})
         .execute()
     )
+
+    # Record that WE authored this, so the gate can never feed it back to us as a
+    # new request. Our reply carries the thread's subject (`Re: AI: …`) and so
+    # matches the subject regex exactly as well as the original — without this the
+    # agent replies to itself forever. Sending is what matters; if the bookkeeping
+    # fails we log loudly rather than fail the send (the reply is already gone),
+    # but a failure here means the loop guard is off and must be treated as urgent.
+    if store is not None and sent.get("id"):
+        try:
+            store.mark_agent_sent(thread_id, sent["id"])
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "REPLY LOOP GUARD FAILED: could not record agent-sent message %s on "
+                "thread %s. The gate may feed this reply back and cause a self-reply "
+                "loop.",
+                sent["id"],
+                thread_id,
+            )
+
+    return sent
 
 
 # ---------------------------------------------------------------------------
