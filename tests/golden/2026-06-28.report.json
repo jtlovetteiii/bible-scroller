@@ -62,7 +62,7 @@
     },
     {
       "index": 8,
-      "type": "special_music",
+      "type": "song",
       "slides": [
         22,
         22
@@ -177,8 +177,8 @@
       "verified": false,
       "public_domain": false,
       "number": null,
-      "role": "special_music",
-      "background": null,
+      "role": "praise",
+      "background": "praise-2.png",
       "sections": [],
       "slides": [
         22
@@ -250,9 +250,10 @@
     },
     {
       "segment": 8,
-      "type": "special_music",
+      "type": "song",
+      "song": "his-name-is-jesus",
       "title": "His Name Is Jesus",
-      "need": "performer name (e.g. \"Calvary Choir\")"
+      "need": "lyrics — songs/his-name-is-jesus.md has no projectable sections (empty or placeholder text), so only the title slide was generated"
     }
   ],
   "warnings": [],

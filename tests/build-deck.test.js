@@ -45,13 +45,13 @@ function matchesGolden(name, actual) {
 
 // ── The reference deck ──────────────────────────────────────────────────────
 //
-// The golden is the SCRIPT's output, which matches the segment table in
-// .claude/commands/gen_service.md. It is byte-identical to the hand-built
-// passages/2026-06-28/service-preview.html except for one line: slide 22's
-// background. The deck calls "His Name Is Jesus" special_music (-> choir.png);
-// the hand-built deck put it on praise-2.png, the congregational-praise
-// background. That disagreement is bs-fdn, and it is a question for the
-// minister of music, not a bug here. Resolve it there, then re-record.
+// The golden is the script's output for examples/2026-06-28.deck.json. It
+// matches the hand-built passages/2026-06-28/service-preview.html slide for
+// slide, except that slide 22 ("His Name Is Jesus") is now rendered as
+// congregational praise rather than special music — see bs-fdn. The hand-built
+// deck had it on the praise background but with special music's scrim and
+// label; the script is self-consistent (praise background, no scrim, amber
+// VERIFY because the song's lyrics are unconfirmed — bs-1nn).
 
 test('reference deck renders identically to its golden', () => {
   const { html, report } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
@@ -73,11 +73,17 @@ test('reference deck report carries the facts the skill reports back', () => {
     'unverified songs are surfaced by slug'
   );
 
-  // Both special-music segments lack a performer: exactly the kind of thing the
-  // interactive skill would have ASKED about, and that batch mode must report.
-  const performerGaps = report.missing.filter((m) => m.type === 'special_music');
-  assert.equal(performerGaps.length, 2);
-  for (const gap of performerGaps) assert.match(gap.need, /performer/i);
+  // The report surfaces both kinds of gap batch mode has to act on, and they
+  // get different treatment (see gen_service's non-interactive contract):
+  //   - a missing performer BLOCKS: the deck is held and the agent asks first
+  //   - missing lyrics DON'T: the title slide ships and the agent asks alongside
+  const [performer, lyrics] = report.missing;
+
+  assert.equal(performer.type, 'special_music');
+  assert.match(performer.need, /performer/i);
+
+  assert.equal(lyrics.song, 'his-name-is-jesus');
+  assert.match(lyrics.need, /lyrics/i);
 });
 
 // ── The cardinal rule, enforced by the script rather than the model ──────────
