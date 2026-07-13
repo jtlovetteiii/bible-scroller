@@ -45,6 +45,7 @@
             "song",
             "special_music",
             "video",
+            "sermon_transition",
             "closing_prayer"
           ]
         },
@@ -64,7 +65,8 @@
         { "$ref": "#/definitions/graduation" },
         { "$ref": "#/definitions/song" },
         { "$ref": "#/definitions/specialMusic" },
-        { "$ref": "#/definitions/video" }
+        { "$ref": "#/definitions/video" },
+        { "$ref": "#/definitions/sermonTransition" }
       ]
     },
 
@@ -223,8 +225,26 @@
       }
     },
 
+    "sermonTransition": {
+      "description": "black.png. 1 plain slide. Goes in EVERY deck, between the last pre-sermon music and the sermon — the screen the congregation looks at while the pastor comes up. If the service has a video here, it is dropped in later outside this deck; the black slide is its slot, so a video does NOT add a second segment.",
+      "if": { "properties": { "type": { "const": "sermon_transition" } } },
+      "then": {
+        "properties": {
+          "type": {},
+          "background": {},
+          "scrim": {},
+          "label": {
+            "type": "string",
+            "default": "Sermon",
+            "description": "Preview-chrome label only. Nothing is rendered on the slide."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
     "video": {
-      "description": "black.png. 1 plain slide.",
+      "description": "black.png. 1 plain slide. An explicit extra video slot; the pre-sermon black slide is `sermon_transition`, not this.",
       "if": { "properties": { "type": { "const": "video" } } },
       "then": {
         "properties": {

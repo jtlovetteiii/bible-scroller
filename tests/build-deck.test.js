@@ -46,12 +46,14 @@ function matchesGolden(name, actual) {
 // ── The reference deck ──────────────────────────────────────────────────────
 //
 // The golden is the script's output for examples/2026-06-28.deck.json. It
-// matches the hand-built passages/2026-06-28/service-preview.html slide for
-// slide, except that slide 22 ("His Name Is Jesus") is now rendered as
-// congregational praise rather than special music — see bs-fdn. The hand-built
-// deck had it on the praise background but with special music's scrim and
-// label; the script is self-consistent (praise background, no scrim, amber
-// VERIFY because the song's lyrics are unconfirmed — bs-1nn).
+// tracks the hand-built passages/2026-06-28/service-preview.html, and now
+// deliberately improves on it in two places:
+//
+//   - slide 22 ("His Name Is Jesus") is congregational praise, not special
+//     music (bs-fdn). The hand-built deck had it on the praise background but
+//     wearing special music's scrim and label; the script is self-consistent.
+//   - slide 23 is the sermon_transition black slide, which every deck gets and
+//     the hand-built one was missing.
 
 test('reference deck renders identically to its golden', () => {
   const { html, report } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
@@ -62,8 +64,18 @@ test('reference deck renders identically to its golden', () => {
 test('reference deck report carries the facts the skill reports back', () => {
   const { report } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
 
-  assert.equal(report.slides, 36, 'the hand-built deck is 36 slides');
+  assert.equal(report.slides, 37, '36 hand-built slides + the sermon_transition');
   assert.equal(report.season, 'summer', 'June -> summer, derived from the date');
+
+  // Every deck ends its music with a black slide the congregation looks at
+  // while the pastor comes up — video or no video.
+  const types = report.segments.map((s) => s.type);
+  assert.ok(types.includes('sermon_transition'), 'the deck has a sermon transition');
+  assert.equal(
+    types.at(-1),
+    'closing_prayer',
+    'and it comes before the invitation + closing prayer, not at the very end'
+  );
 
   // Every song in the library that is unverified must be named, so the skill
   // can hand the operator a list of what to check before Sunday.
@@ -172,7 +184,7 @@ test('CLI exits 0 and prints the report as JSON on stdout', (t) => {
 
   assert.equal(code, 0);
   const report = JSON.parse(stdout);
-  assert.equal(report.slides, 36, 'stdout is the machine-readable report');
+  assert.equal(report.slides, 37, 'stdout is the machine-readable report');
   assert.ok(fs.existsSync(out), 'writes the preview HTML');
   assert.ok(
     fs.existsSync(path.join(tmp, 'service-report.json')),

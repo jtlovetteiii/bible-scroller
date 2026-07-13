@@ -2,7 +2,7 @@
   "date": "2026-06-28",
   "season": "summer",
   "season_source": "derived-from-date",
-  "slides": 36,
+  "slides": 37,
   "segments": [
     {
       "index": 1,
@@ -70,18 +70,26 @@
     },
     {
       "index": 9,
-      "type": "song",
+      "type": "sermon_transition",
       "slides": [
         23,
-        33
+        23
       ]
     },
     {
       "index": 10,
+      "type": "song",
+      "slides": [
+        24,
+        34
+      ]
+    },
+    {
+      "index": 11,
       "type": "closing_prayer",
       "slides": [
-        34,
-        36
+        35,
+        37
       ]
     }
   ],
@@ -206,7 +214,7 @@
         "Refrain"
       ],
       "slides": [
-        23
+        24
       ]
     }
   ],
@@ -258,5 +266,5 @@
   ],
   "warnings": [],
   "notes": "Reference deck: reproduces the hand-written passages/2026-06-28/service-preview.html via scripts/build-deck.js.",
-  "exports": "Slide01.jpeg … Slide36.jpeg"
+  "exports": "Slide01.jpeg … Slide37.jpeg"
 }

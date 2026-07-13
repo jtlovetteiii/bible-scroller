@@ -57,7 +57,7 @@ const SCRIM_BACKGROUNDS = new Set(['choir.png', 'baptism.png', 'graduation.png']
 
 const SEGMENT_TYPES = [
   'preshow', 'prelude', 'baptism', 'graduation',
-  'welcome', 'song', 'special_music', 'video', 'closing_prayer',
+  'welcome', 'song', 'special_music', 'video', 'sermon_transition', 'closing_prayer',
 ];
 
 // Allowed keys per segment type (beyond the common ones), so a typo like
@@ -72,6 +72,7 @@ const SEGMENT_KEYS = {
   song: ['song', 'role', 'sections', 'number', 'title_only'],
   special_music: ['song', 'title', 'performer', 'lyrics'],
   video: ['label'],
+  sermon_transition: ['label'],
   closing_prayer: [],
 };
 
@@ -467,6 +468,15 @@ function build(deck, deckPath) {
       case 'video': {
         const label = seg.label || 'Video';
         comment(`Video — ${label}`);
+        slide({ label, classes: 'plain-slide', background: seg.background || 'black.png', scrim: segScrim });
+        break;
+      }
+
+      // The screen the congregation looks at while the pastor comes up. Every
+      // deck has one. If there's a video it goes here, added outside this deck.
+      case 'sermon_transition': {
+        const label = seg.label || 'Sermon';
+        comment(`Sermon transition — ${label}`);
         slide({ label, classes: 'plain-slide', background: seg.background || 'black.png', scrim: segScrim });
         break;
       }

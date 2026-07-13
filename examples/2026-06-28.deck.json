@@ -50,6 +50,9 @@
       "song": "his-name-is-jesus"
     },
     {
+      "type": "sermon_transition"
+    },
+    {
       "type": "song",
       "song": "i-am-resolved",
       "role": "invitation",
