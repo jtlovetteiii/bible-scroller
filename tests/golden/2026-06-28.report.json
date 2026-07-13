@@ -249,6 +249,31 @@
     }
   ],
   "splits": [],
+  "typography": [
+    {
+      "segment": 4,
+      "song": "Holy, Holy, Holy",
+      "slides": [
+        8,
+        9,
+        10
+      ],
+      "size": 48,
+      "reason": "shrunk from 60px so every written line stays whole — the longest line is 1480px at 60px, and the slide is 1196px wide. The whole song uses one size so the type does not jump between verses."
+    },
+    {
+      "segment": 7,
+      "song": "Way Maker",
+      "slides": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "size": 58,
+      "reason": "shrunk from 60px so every written line stays whole — the longest line is 1202px at 60px, and the slide is 1196px wide. The whole song uses one size so the type does not jump between verses."
+    }
+  ],
   "missing": [
     {
       "segment": 6,

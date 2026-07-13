@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { build, DeckError } = require('../scripts/build-deck.js');
+const { build, DeckError, textWidth, CONTENT_W } = require('../scripts/build-deck.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'build-deck.js');
@@ -96,6 +96,85 @@ test('reference deck report carries the facts the skill reports back', () => {
 
   assert.equal(lyrics.song, 'his-name-is-jesus');
   assert.match(lyrics.need, /lyrics/i);
+});
+
+// ── Typography ──────────────────────────────────────────────────────────────
+//
+// The script used to estimate wrapping as ceil(chars / 55) — a monospace
+// assumption applied to Optima, a proportional face. It was wrong by up to 24% of
+// the box, so hymn lines wrapped mid-phrase and stranded words like "glassy sea;"
+// alone on a centered line. Widths now come from a real glyph table.
+
+test('a hymn line is never wrapped mid-phrase — the font shrinks instead', () => {
+  const { report, html } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
+
+  // "Casting down their golden crowns around the glassy sea;" is 1480px at 60px
+  // in a 1196px box. The old char-count proxy called it 55 chars = one line.
+  const holy = report.typography.find((t) => t.song.startsWith('Holy'));
+  assert.ok(holy, 'Holy, Holy, Holy has a line too wide for the box at 60px');
+  assert.equal(holy.size, 48, 'shrunk to the size at which its longest line stays whole');
+
+  // Every lyric line, at its slide's actual size, must fit on one rendered line.
+  for (const [, style, body] of html.matchAll(
+    /<div class="lyric"(?:\s+style="font-size:\s*(\d+)px")?>\s*([\s\S]*?)\s*<\/div>/g
+  )) {
+    const size = Number(style ?? 60);
+    for (const line of body.split('<br>').map((l) => l.trim())) {
+      assert.ok(
+        textWidth(line, size) <= CONTENT_W,
+        `"${line}" is ${Math.round(textWidth(line, size))}px at ${size}px — it will wrap in a ${CONTENT_W}px box`
+      );
+    }
+  }
+});
+
+test('one size per song, so the type does not jump between verses', () => {
+  // Fitting each stanza on its own gives Holy, Holy, Holy 56px / 48px / 52px on
+  // consecutive slides — the text visibly changes size as the operator advances.
+  const { html } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
+
+  const sizes = [...html.matchAll(
+    /Slide (\d+) — Holy, Holy, Holy[\s\S]*?<div class="lyric"(?:\s+style="font-size:\s*(\d+)px")?>/g
+  )].map((m) => Number(m[2] ?? 60));
+
+  assert.equal(sizes.length, 3, 'three verses of Holy, Holy, Holy');
+  assert.deepEqual(sizes, [48, 48, 48], 'all three verses share one size');
+});
+
+test('a line too wide even at the floor is reported, not silently wrapped', () => {
+  // The 48px floor is the operator's readability limit for the back of the room,
+  // so the script will not go below it. A line that still does not fit is a
+  // judgment call — re-break it, or accept smaller text — and must be surfaced.
+  // The song library is read from disk, so this needs a real (temporary) file.
+  const stub = path.join(ROOT, 'songs', 'zz-test-toolong.md');
+  const tooLong = 'Wonderful'.padEnd(9) + ' magnificent'.repeat(8); // wider than any ladder size
+  fs.writeFileSync(stub, `---\ntitle: Too Long\ntype: hymn\nverified: true\n---\n\n## Verse 1\n${tooLong}\n`);
+
+  try {
+    const { report } = build(
+      { date: '2026-06-28', segments: [{ type: 'song', song: 'zz-test-toolong' }] },
+      '<test>'
+    );
+    assert.equal(report.warnings.length, 1, 'the unfittable line is reported');
+    assert.match(report.warnings[0], /do not fit even at the 48px floor/);
+    assert.match(report.warnings[0], /font_size/, 'and it says how to resolve it');
+  } finally {
+    fs.rmSync(stub, { force: true });
+  }
+});
+
+test('font_size on a segment overrides the fitter', () => {
+  const { report, html } = build(
+    {
+      date: '2026-06-28',
+      segments: [{ type: 'song', song: 'holy-holy-holy', sections: ['Verse 1'], font_size: 40 }],
+    },
+    '<test>'
+  );
+
+  assert.match(html, /style="font-size: 40px"/, 'the operator gets the size they asked for');
+  assert.equal(report.typography[0].size, 40);
+  assert.match(report.typography[0].reason, /explicitly/, 'and the report says it was deliberate');
 });
 
 // ── The cardinal rule, enforced by the script rather than the model ──────────

@@ -34,15 +34,18 @@ const TEMPLATE = path.join(ROOT, 'templates', 'service-slides-template.html');
 const SLIDES_MARKER = '<!-- SLIDES -->';
 
 // ── Layout constants, grounded in templates/service-slides-template.html ─────
-// .slide            1456 x 816
+// .slide                 1456 x 816
 // .lyric-slide .content  padding: 80px 130px  -> 1196 x 656 content box
-// .lyric            font-size 60px, line-height 1.4 -> 84px per rendered line
-// 656 / 84 = 7.8  -> 7 rendered lines is the most that fits without shrinking.
-// The CSS comment and gen_service both call 60px at 130px padding the proven
-// fit for the longest classic hymn lines (~55 chars), so ~55 chars is one
-// rendered line.
-const MAX_RENDERED_LINES = 7;
-const MAX_CHARS_PER_LINE = 55;
+// .lyric                 font-size 60px, line-height 1.4
+const CONTENT_W = 1196;
+const CONTENT_H = 656;
+const LINE_HEIGHT_RATIO = 1.4;
+
+// Sizes we may drop to so a long line stays whole. 60px is the design size; 48px
+// is the floor the operator set for the back row of the sanctuary. Below that,
+// shrinking is the wrong answer and the slide is reported instead.
+const FONT_LADDER = [60, 58, 56, 54, 52, 50, 48];
+const FONT_FLOOR = FONT_LADDER[FONT_LADDER.length - 1];
 
 const SEASONS = ['winter', 'spring', 'summer', 'fall'];
 const SEASON_BY_MONTH = {
@@ -69,8 +72,8 @@ const SEGMENT_KEYS = {
   baptism: ['names', 'text'],
   graduation: ['text'],
   welcome: [],
-  song: ['song', 'role', 'sections', 'number', 'title_only'],
-  special_music: ['song', 'title', 'performer', 'lyrics'],
+  song: ['song', 'role', 'sections', 'number', 'title_only', 'font_size'],
+  special_music: ['song', 'title', 'performer', 'lyrics', 'font_size'],
   video: ['label'],
   sermon_transition: ['label'],
   closing_prayer: [],
@@ -164,33 +167,85 @@ function parseSong(slug) {
 // Stub text a song file may carry in place of lyrics.
 const PLACEHOLDER_RE = /paste lyrics|lyrics here|unconfirmed|\bTODO\b|placeholder|\bTBD\b/i;
 
-// ── Stanza splitting ────────────────────────────────────────────────────────
+// ── Typography ──────────────────────────────────────────────────────────────
+//
+// A lyric slide is bound by two INDEPENDENT constraints, and conflating them is
+// what produced orphaned words on the wall:
+//
+//   WIDTH  — one written line too wide for the box. NEVER wrap it. A hymn line is
+//            a unit of metre; breaking it mid-phrase ("...around the / glassy
+//            sea;") is what makes a congregation stumble. Shrink the slide's font
+//            until every written line stays whole.
+//   HEIGHT — too many lines for the box. THAT is what splitting a stanza is for.
+//
+// Widths come from a real glyph table (scripts/optima-metrics.json), not a
+// character count. The old `ceil(len / 55)` estimate was a monospace assumption
+// applied to a proportional face and was wrong by up to 24% of the box.
 
-const renderedLines = (lines) =>
-  lines.reduce((n, l) => n + Math.max(1, Math.ceil(l.length / MAX_CHARS_PER_LINE)), 0);
+const METRICS = JSON.parse(fs.readFileSync(path.join(__dirname, 'optima-metrics.json'), 'utf8'));
+
+/** Width of `text` in px at `size`, exactly as the browser will lay it out. */
+function textWidth(text, size) {
+  let w = 0;
+  for (const ch of text) w += METRICS.advances[ch] ?? METRICS.fallback;
+  return (w * size) / METRICS.size;
+}
+
+const lineHeight = (size) => size * LINE_HEIGHT_RATIO;
+const linesPerSlide = (size) => Math.floor(CONTENT_H / lineHeight(size));
+
+/** How many rendered lines `line` becomes at `size` — greedy word wrap, as CSS does. */
+function wrapCount(line, size) {
+  if (textWidth(line, size) <= CONTENT_W) return 1;
+  let n = 1;
+  let cur = '';
+  for (const word of line.split(/\s+/)) {
+    const trial = cur ? `${cur} ${word}` : word;
+    if (textWidth(trial, size) <= CONTENT_W) cur = trial;
+    else { n++; cur = word; }
+  }
+  return n;
+}
+
+const renderedLines = (lines, size) => lines.reduce((n, l) => n + wrapCount(l, size), 0);
+
+/**
+ * The largest size in the ladder at which EVERY written line fits on one rendered
+ * line. Returns null if even the floor cannot hold them — that is a judgment call
+ * (re-break the line, or accept a wrap), so it is reported rather than decided.
+ *
+ * Takes ALL the stanzas of a song at once, deliberately. Fitting each stanza
+ * on its own gives the same hymn a different size on every slide (verse 1 at
+ * 56px, verse 2 at 48px), and the type visibly jumps as the operator advances.
+ * One size per song: the smallest any of its stanzas needs.
+ */
+function fitSize(stanzas, ladder = FONT_LADDER) {
+  const lines = stanzas.flat();
+  return ladder.find((size) => lines.every((l) => textWidth(l, size) <= CONTENT_W)) ?? null;
+}
 
 // A line that ends a sentence/clause is a natural place to break a stanza.
 const isNaturalBreak = (line) => /[.;:!?]["'’”]?$/.test(line.trim());
 
 /**
- * Split a stanza into the fewest chunks that each fit MAX_RENDERED_LINES,
- * balancing chunk sizes and preferring breaks after end-of-clause punctuation.
+ * Split one stanza across as many slides as it needs AT A GIVEN SIZE. The size is
+ * chosen once per song by fitSize(), so every slide of a hymn matches.
  * Deterministic: same input -> same output, always.
  */
-function splitStanza(lines) {
-  if (renderedLines(lines) <= MAX_RENDERED_LINES) return [lines];
+function layoutStanza(lines, size) {
+  const max = linesPerSlide(size);
+  if (renderedLines(lines, size) <= max) return [lines];
 
-  const n = lines.length;
-  for (let k = 2; k <= n; k++) {
-    const best = partition(lines, k);
-    if (best && best.maxCost <= MAX_RENDERED_LINES) return best.chunks;
+  for (let k = 2; k <= lines.length; k++) {
+    const best = partition(lines, k, size);
+    if (best && best.maxCost <= max) return best.chunks;
   }
-  // Every individual line is longer than a slide (pathological) — one per slide.
+  // A single line taller than the whole box (pathological) — one per slide.
   return lines.map((l) => [l]);
 }
 
 /** Exhaustive best k-way contiguous partition (stanzas are tiny; this is fine). */
-function partition(lines, k) {
+function partition(lines, k, size) {
   const n = lines.length;
   if (k > n) return null;
   let best = null;
@@ -207,7 +262,7 @@ function partition(lines, k) {
   };
 
   const consider = (chunks) => {
-    const costs = chunks.map(renderedLines);
+    const costs = chunks.map((c) => renderedLines(c, size));
     const maxCost = Math.max(...costs);
     const spread = maxCost - Math.min(...costs);
     // penalty: a break that does not follow end-of-clause punctuation
@@ -382,6 +437,7 @@ function build(deck, deckPath) {
     songs: [],
     unverified: [],
     splits: [],
+    typography: [],
     missing: [],
     warnings: [],
   };
@@ -405,18 +461,82 @@ function build(deck, deckPath) {
     return n;
   };
 
-  const lyricSlide = (label, unverified, background, lines) =>
-    slide({
+  // `size` is the fitted font size. Only emitted when it differs from the
+  // template's 60px, so an untouched slide stays byte-identical to the CSS default.
+  const lyricSlide = (label, unverified, background, lines, size) => {
+    const style = size && size !== FONT_LADDER[0] ? ` style="font-size: ${size}px"` : '';
+    return slide({
       label, unverified, background,
       classes: 'lyric-slide',
       inner: [
         '  <div class="content">',
-        '    <div class="lyric">',
+        `    <div class="lyric"${style}>`,
         '      ' + lines.map(escapeHtml).join('<br>\n      '),
         '    </div>',
         '  </div>',
       ],
     });
+  };
+
+  /**
+   * Emit every lyric slide for one song, at ONE font size shared across all of
+   * them. Records what it had to do to make them fit — a shrink or a forced wrap
+   * is exactly the kind of thing the operator used to catch by eye, so it goes in
+   * the report rather than happening silently.
+   *
+   * `stanzas` is [{ name, lines }] in projection order.
+   */
+  const emitSong = ({ segment, song, stanzas, unverified, background, override }) => {
+    const all = stanzas.map((s) => s.lines);
+    const fitted = fitSize(all);
+    const size = override ?? fitted ?? FONT_FLOOR;
+    const slides = [];
+
+    for (const { name, lines } of stanzas) {
+      const chunks = layoutStanza(lines, size);
+      const first = lyricSlide(
+        `${song} · ${name}${chunks.length > 1 ? ' (1/' + chunks.length + ')' : ''}`,
+        unverified, background, chunks[0], size
+      );
+      slides.push(first);
+      for (let ci = 1; ci < chunks.length; ci++) {
+        slides.push(
+          lyricSlide(`${song} · ${name} (${ci + 1}/${chunks.length})`, unverified, background, chunks[ci], size)
+        );
+      }
+      if (chunks.length > 1) {
+        report.splits.push({
+          segment, song, section: name, parts: chunks.length,
+          slides: Array.from({ length: chunks.length }, (_, x) => first + x),
+          reason: `stanza renders as ${renderedLines(lines, size)} projected lines at ${size}px; ${linesPerSlide(size)} is the most that fits`,
+        });
+      }
+    }
+
+    if (size !== FONT_LADDER[0]) {
+      const widest = Math.round(Math.max(...all.flat().map((l) => textWidth(l, FONT_LADDER[0]))));
+      report.typography.push({
+        segment, song, slides, size,
+        reason: override
+          ? `font size ${size}px set explicitly on this segment`
+          : `shrunk from ${FONT_LADDER[0]}px so every written line stays whole — the longest line is ${widest}px at ${FONT_LADDER[0]}px, and the slide is ${CONTENT_W}px wide. The whole song uses one size so the type does not jump between verses.`,
+      });
+    }
+
+    // The floor is the operator's readability limit for the back row, so we do not
+    // go below it — which means these lines WILL wrap mid-phrase. That is a
+    // judgment call (re-break the line, or accept it) and it belongs to a human,
+    // so say so loudly rather than quietly projecting an orphaned word.
+    const tooWide = all.flat().filter((l) => textWidth(l, size) > CONTENT_W);
+    if (tooWide.length) {
+      report.warnings.push(
+        `${song}: ${tooWide.length} line(s) do not fit even at the ${size}px floor and will wrap mid-phrase. ` +
+        `Re-break the line in songs/${song}, or set "font_size" on this segment if smaller text is acceptable. ` +
+        `Longest: ${JSON.stringify(tooWide[0])}`
+      );
+    }
+    return slides;
+  };
 
   const titleSlide = (label, unverified, background, title, opts = {}) => {
     const inner = ['  <div class="content">', `    <div class="title">${escapeHtml(title)}</div>`];
@@ -549,20 +669,13 @@ function build(deck, deckPath) {
         }
         if (seg.lyrics) {
           // Operator-supplied only — never from the library.
-          stanzasFromLyrics(seg.lyrics).forEach((stanza, si) => {
-            const chunks = splitStanza(stanza);
-            chunks.forEach((chunk, ci) => {
-              const suffix = chunks.length > 1 ? ` (${ci + 1}/${chunks.length})` : '';
-              const slideNo = lyricSlide(`${title} · Stanza ${si + 1}${suffix}`, false, background, chunk);
-              if (chunks.length > 1 && ci === 0) {
-                report.splits.push({
-                  segment: i + 1, song: title, section: `Stanza ${si + 1}`,
-                  parts: chunks.length,
-                  slides: Array.from({ length: chunks.length }, (_, x) => slideNo + x),
-                  reason: `stanza renders as ${renderedLines(stanza)} projected lines; ${MAX_RENDERED_LINES} is the most that fits at the 60px floor`,
-                });
-              }
-            });
+          emitSong({
+            segment: i + 1, song: title, unverified: false, background,
+            override: seg.font_size,
+            stanzas: stanzasFromLyrics(seg.lyrics).map((lines, si) => ({
+              name: `Stanza ${si + 1}`,
+              lines,
+            })),
           });
         }
         if (song) noteSong(report, songsSeen, song, seg, [], first);
@@ -609,23 +722,12 @@ function build(deck, deckPath) {
             need: `lyrics — songs/${song.slug}.md has no projectable sections (empty or placeholder text), so only the title slide was generated`,
           });
         } else {
-          for (const name of names) {
-            const section = song.byName.get(name);
-            const chunks = splitStanza(section.lines);
-            chunks.forEach((chunk, ci) => {
-              const suffix = chunks.length > 1 ? ` (${ci + 1}/${chunks.length})` : '';
-              const slideNo = lyricSlide(`${song.title} · ${name}${suffix}`, unverified, background, chunk);
-              if (chunks.length > 1 && ci === 0) {
-                report.splits.push({
-                  segment: i + 1, song: song.title, section: name,
-                  parts: chunks.length,
-                  slides: Array.from({ length: chunks.length }, (_, x) => slideNo + x),
-                  reason: `stanza renders as ${renderedLines(section.lines)} projected lines; ${MAX_RENDERED_LINES} is the most that fits at the 60px floor`,
-                });
-              }
-            });
-            projected.push(name);
-          }
+          emitSong({
+            segment: i + 1, song: song.title, unverified, background,
+            override: seg.font_size,
+            stanzas: names.map((name) => ({ name, lines: song.byName.get(name).lines })),
+          });
+          projected.push(...names);
         }
         noteSong(report, songsSeen, song, seg, projected, first, { role, background, number });
         break;
@@ -759,4 +861,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { build, parseSong, splitStanza, renderedLines, escapeHtml, DeckError };
+module.exports = { build, parseSong, layoutStanza, renderedLines, textWidth, fitSize, escapeHtml, DeckError, FONT_LADDER, FONT_FLOOR, CONTENT_W };

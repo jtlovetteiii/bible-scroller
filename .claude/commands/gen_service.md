@@ -18,10 +18,21 @@ The script — not you — owns everything mechanical:
 - seasonal background variants
 - the `<div class="scrim">` on bright backgrounds
 - pulling lyric text out of `songs/*.md` (repeats included)
-- splitting an over-long stanza across slides
+- **typography**: measuring each line against the slide with real glyph widths, shrinking a song's font (60px → 48px floor) so no line ever wraps mid-phrase, and splitting an over-long stanza across slides
 - HTML escaping, `<br>` line breaks, `.slide-label` preview chrome, the amber `unverified` flag
 
 If a slide comes out wrong in a way the deck JSON cannot express, that is a bug in `scripts/build-deck.js` — fix the script, not the output.
+
+### Typography — you do not eyeball this
+
+A hymn line is a unit of metre, so the script **never wraps one**. It measures every line against the 1196px slide with real Optima glyph widths and picks the largest size from 60px down to a 48px floor at which every line of that song stays whole — one size per song, so the type doesn't jump between verses. Slides that fit at 60px are left alone.
+
+Two things reach you:
+
+- **`report.typography`** — every song whose font was shrunk, and why. Worth passing on: *"Holy, Holy, Holy is set at 48px; its longest line is too wide for the slide at full size."*
+- **`report.warnings`** — a line that doesn't fit even at the 48px floor. The script will not go below the floor, so that line **will** wrap. This is a judgment call and it is yours to raise: re-break the line in `songs/`, or set `font_size` on the segment if smaller text is acceptable. Say so in your reply; don't let it ship silently.
+
+`font_size` on a `song` or `special_music` segment overrides the fitter. Use it when the automatic call is wrong — not routinely.
 
 ## The cardinal rule
 

@@ -181,6 +181,12 @@
             "type": ["integer", "string"],
             "description": "Overrides the hymnal number from frontmatter."
           },
+          "font_size": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 60,
+            "description": "Override the fitted lyric font size, in px. The script normally picks the largest size (60 down to a 48px floor) at which every written line stays whole, because wrapping a hymn line mid-phrase strands words on the wall. Set this only when that call is wrong — e.g. you would rather have smaller text than a re-broken line. Reported under `typography`."
+          },
           "title_only": {
             "type": "boolean",
             "default": false,
@@ -208,6 +214,12 @@
           "performer": {
             "type": "string",
             "description": "e.g. \"The Lovette Quartet\", \"Calvary Choir\". Absent -> reported under `missing`."
+          },
+          "font_size": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 60,
+            "description": "Override the fitted lyric font size, in px. The script normally picks the largest size (60 down to a 48px floor) at which every written line stays whole, because wrapping a hymn line mid-phrase strands words on the wall. Set this only when that call is wrong — e.g. you would rather have smaller text than a re-broken line. Reported under `typography`."
           },
           "lyrics": {
             "type": "array",
