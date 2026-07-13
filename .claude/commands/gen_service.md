@@ -109,7 +109,7 @@ Amazing grace! how sweet the sound
 ### Resolving a song
 
 1. **In the library** → reference it by slug.
-2. **Not in the library, public-domain hymn** (clearly PD) → write the lyrics from its hymnary.org page, save the file with `public_domain: true`, `verified: true`, then reference it.
+2. **Not in the library, public-domain hymn** (clearly PD) → write the lyrics from its hymnary.org page, save the file with `public_domain: true`, then reference it. `verified: true` in interactive mode — the operator is right there and will see the slides. **In batch mode, `verified: false`**: nobody has laid eyes on those lyrics, and the amber flag plus the `unverified` report line *is* how you tell him which slides to check before Sunday.
 3. **Not in the library, copyrighted** (modern hymn or praise song) → draft the best-known lyrics, save with `verified: false` and a `<!-- VERIFY … -->` comment. Slides are still generated (drafted lyrics are showable), but flagged. **Interactive mode only** — in batch mode there is no one to check them, so skip to 4.
 4. **Not in the library and you don't actually know the lyrics** → do **not** invent them. Create the song file with frontmatter and no sections, use `"title_only": true`, and tell the user you need the lyrics. The script refuses to project placeholder text, so a stub section (`(paste lyrics here…)`) is a build error, not a slide.
 
@@ -177,7 +177,7 @@ If a run has both kinds, blocking wins: hold the deck.
 
 ### Lyrics you don't have
 
-The [Resolving a song](#resolving-a-song) ladder applies, with one rung removed: **in batch mode, never draft lyrics from memory.** There is no one to catch you. Library first; then look up a public-domain hymn and save it (`verified: false`, with its `source` — the amber flag and the `unverified` report line *are* the "I looked these up, please check them" message he needs); otherwise `title_only` and ask him for the text.
+The [Resolving a song](#resolving-a-song) ladder applies, with one rung removed: **in batch mode, never draft lyrics from memory.** There is no one to catch you. Library first; then look up a public-domain hymn and save it — **always `verified: false`** in batch mode, because no human has read those lyrics yet, and the amber flag plus the `unverified` report line *is* the "I looked these up, please check them" message he needs. Anything you can neither find nor look up: `title_only`, and ask him for the text.
 
 ### The deck is a living artifact
 

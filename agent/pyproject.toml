@@ -27,3 +27,9 @@ packages = ["src/email_agent"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Evals run the real model against the real skill: minutes, and real tokens. They
+# are opt-in (`uv run pytest -m eval`) so the fast suite stays fast and offline.
+addopts = "-m 'not eval'"
+markers = [
+    "eval: exercises the model end to end (slow, costs tokens, needs auth)",
+]
