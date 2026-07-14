@@ -258,8 +258,46 @@
         9,
         10
       ],
-      "size": 48,
-      "reason": "shrunk from 60px so every written line stays whole — the longest line is 1480px at 60px, and the slide is 1196px wide. The whole song uses one size so the type does not jump between verses."
+      "size": 60,
+      "kind": "caesura",
+      "lines": [
+        {
+          "line": "Early in the morning our song shall rise to Thee;",
+          "as": [
+            "Early in the morning",
+            "our song shall rise to Thee;"
+          ]
+        },
+        {
+          "line": "Casting down their golden crowns around the glassy sea;",
+          "as": [
+            "Casting down their golden crowns",
+            "around the glassy sea;"
+          ]
+        },
+        {
+          "line": "Cherubim and seraphim falling down before Thee,",
+          "as": [
+            "Cherubim and seraphim",
+            "falling down before Thee,"
+          ]
+        },
+        {
+          "line": "Holy, holy, holy! though the darkness hide Thee,",
+          "as": [
+            "Holy, holy, holy!",
+            "though the darkness hide Thee,"
+          ]
+        },
+        {
+          "line": "Though the eye of sinful man Thy glory may not see,",
+          "as": [
+            "Though the eye of sinful man",
+            "Thy glory may not see,"
+          ]
+        }
+      ],
+      "reason": "5 line(s) too wide for the slide at 60px were broken at the caesura marked in songs/holy-holy-holy.md, keeping the song at full size."
     },
     {
       "segment": 7,
@@ -270,8 +308,18 @@
         20,
         21
       ],
-      "size": 58,
-      "reason": "shrunk from 60px so every written line stays whole — the longest line is 1202px at 60px, and the slide is 1196px wide. The whole song uses one size so the type does not jump between verses."
+      "size": 60,
+      "kind": "caesura",
+      "lines": [
+        {
+          "line": "Way Maker, Miracle Worker, Promise Keeper,",
+          "as": [
+            "Way Maker, Miracle Worker,",
+            "Promise Keeper,"
+          ]
+        }
+      ],
+      "reason": "1 line(s) too wide for the slide at 60px were broken at the caesura marked in songs/waymaker.md, keeping the song at full size."
     }
   ],
   "missing": [

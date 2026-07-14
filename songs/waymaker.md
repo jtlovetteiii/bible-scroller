@@ -16,7 +16,7 @@ You are here, working in this place;
 I worship You, I worship You.
 
 ## Chorus
-Way Maker, Miracle Worker, Promise Keeper,
+Way Maker, Miracle Worker, | Promise Keeper,
 Light in the darkness, my God,
 That is who You are.
 

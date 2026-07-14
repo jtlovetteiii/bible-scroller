@@ -165,6 +165,11 @@ async def test_0705_holds_the_deck_when_a_slide_cannot_exist(run_0705):
     flowchart gives neither — so there is no honest slide to make. The agent must
     not guess a song, and must not ship a deck with a hole in it. It asks first.
     """
+    # Order matters: assert it REPLIED before asserting it didn't build. Otherwise a
+    # run that silently did nothing at all would pass this test — holding the deck
+    # and dying are not the same outcome, and only one of them is correct.
+    assert run_0705.replies, "the run ended without a reply — it must always send one"
+
     assert not run_0705.built_a_deck(SERVICE_DATE_0705), (
         "the Quartet line names no song, so no deck should have been built yet — "
         f"the agent should have asked first. It replied:\n\n{run_0705.reply}"

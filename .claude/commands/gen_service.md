@@ -23,16 +23,27 @@ The script — not you — owns everything mechanical:
 
 If a slide comes out wrong in a way the deck JSON cannot express, that is a bug in `scripts/build-deck.js` — fix the script, not the output.
 
-### Typography — you do not eyeball this
+### Typography — you do not eyeball this, but one call is yours
 
-A hymn line is a unit of metre, so the script **never wraps one**. It measures every line against the 1196px slide with real Optima glyph widths and picks the largest size from 60px down to a 48px floor at which every line of that song stays whole — one size per song, so the type doesn't jump between verses. Slides that fit at 60px are left alone.
+A hymn line is a unit of metre, so the script **never wraps one**. It measures every line against the 1196px slide with real Optima glyph widths and applies this ladder:
 
-Two things reach you:
+1. **Fits at 60px** → render it.
+2. **Carries a caesura** (`|` in the song file) → break there, stay at 60px. *Preferred.*
+3. **Too wide, no caesura** → shrink the whole song toward a 48px floor, and tell you which line to mark.
+4. **Too wide even at 48px** → a `warnings` line. The script will not go below the floor, so that line *will* wrap. Never let this ship silently.
 
-- **`report.typography`** — every song whose font was shrunk, and why. Worth passing on: *"Holy, Holy, Holy is set at 48px; its longest line is too wide for the slide at full size."*
-- **`report.warnings`** — a line that doesn't fit even at the 48px floor. The script will not go below the floor, so that line **will** wrap. This is a judgment call and it is yours to raise: re-break the line in `songs/`, or set `font_size` on the segment if smaller text is acceptable. Say so in your reply; don't let it ship silently.
+The size is chosen once per **song**, not per slide, so the type doesn't jump between verses. Which is exactly why the caesura matters: one long line drags *every verse* down. Marking `Casting down their golden crowns | around the glassy sea;` keeps all of Holy, Holy, Holy at 60px; leaving it unmarked costs the whole hymn 20% of its type size.
 
-`font_size` on a `song` or `special_music` segment overrides the fitter. Use it when the automatic call is wrong — not routinely.
+**Placing the caesura is your judgment, and it's the one typographic call you own.** The script can measure but it cannot hear the line; a mechanical "break at the widest gap" rule breaks hymns in musically wrong places. Put the `|` at the line's **sense-break** — where a singer breathes — not at its midpoint:
+
+```
+Early in the morning | our song shall rise to Thee;
+Though the eye of sinful man | Thy glory may not see,
+```
+
+The marker lives in `songs/*.md`, never on a slide. It leaves the canonical metrical line intact — it declares *where this line may be broken for projection*, which is a different thing from editing the lyric. When `report.typography` reports a `shrunk` song, add the caesura it names and rebuild; when it reports `caesura`, mention in your reply which lines you split, so the operator can move a `|` you put in the wrong place.
+
+`font_size` on a segment overrides the fitter outright. Use it when smaller text really is preferable to a broken line — not routinely.
 
 ## The cardinal rule
 
@@ -116,6 +127,14 @@ Amazing grace! how sweet the sound
 ```
 
 `type` drives the background; `number` the hymn number; `verified: false` makes the script flag every slide of that song amber in the preview and list it under `unverified` in the report.
+
+A `|` in a lyric line is a **caesura**: it marks where that line may be broken if it is too wide for the slide. It is never shown. Add one to any line long enough to need it, at the sense-break — see [Typography](#typography--you-do-not-eyeball-this-but-one-call-is-yours).
+
+```markdown
+## Verse 2
+Holy, holy, holy! all the saints adore Thee,
+Casting down their golden crowns | around the glassy sea;
+```
 
 ### Resolving a song
 
@@ -216,6 +235,8 @@ The flowchart often won't state it. Take it from the email; failing that, assume
 
    It writes `passages/YYYY-MM-DD/service-preview.html` (creating the folder) plus `service-report.json`, and prints the report as JSON.
 3. **If the build fails**, it names the offending segment. Fix the deck JSON and re-run — never work around it by editing the HTML.
+
+   **Never hand-edit `service-preview.html`, ever — not even for a one-character fix.** The deck is rebuilt from JSON every time the operator asks for a change, and they ask for several across a week (lyrics arrive, a song moves, a verse was missed — sometimes on Sunday morning). An edit to the generated HTML survives exactly until the next rebuild and then vanishes silently, and nobody finds out until it is on the wall. **Every fix goes into a durable input** — the deck JSON, or `songs/*.md` — so it survives regeneration. If a slide is wrong in a way neither can express, that is a bug in `scripts/build-deck.js`: fix the script.
 4. Tell the user to open `http://localhost:3000/passages/YYYY-MM-DD/service-preview.html` to review and export. Exported files are zero-padded (`Slide01.jpeg`…) so a full service sorts correctly, and import into ProPresenter ahead of the sermon images.
 5. Summarize from the report: the running order, every stanza the script **split**, every **unverified** song by name, and everything under **missing** (lyrics, a performer name, …).
 

@@ -70,8 +70,26 @@ class EvalRun:
 
     @property
     def reply(self) -> str:
-        assert self.replies, "the agent never sent a reply — it must always end in one"
+        assert self.replies, (
+            "the agent never sent a reply — it must always end in one."
+            + (f"\n\nThe run ERRORED: {self.error}" if self.error else "")
+        )
         return "\n\n".join(self.replies)
+
+    @property
+    def error(self) -> str | None:
+        """An API-level failure, as distinct from the agent choosing not to reply.
+
+        These are not the same thing and must not be diagnosed as if they were. The
+        one we actually hit is `400 Output blocked by content filtering policy` — an
+        agent whose job is reproducing hymn lyrics verbatim will sometimes have its
+        output refused (see bs-a1f). Surface it, don't let it masquerade as a
+        reasoning failure.
+        """
+        for text in self.transcript:
+            if "API Error" in text or "content filtering" in text:
+                return text.strip()
+        return None
 
     def deck_path(self, date: str) -> Path:
         return self.workspace / "passages" / date / "service.deck.json"

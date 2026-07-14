@@ -172,17 +172,40 @@ const PLACEHOLDER_RE = /paste lyrics|lyrics here|unconfirmed|\bTODO\b|placeholde
 // A lyric slide is bound by two INDEPENDENT constraints, and conflating them is
 // what produced orphaned words on the wall:
 //
-//   WIDTH  — one written line too wide for the box. NEVER wrap it. A hymn line is
-//            a unit of metre; breaking it mid-phrase ("...around the / glassy
-//            sea;") is what makes a congregation stumble. Shrink the slide's font
-//            until every written line stays whole.
+//   WIDTH  — one written line too wide for the box. It is NEVER greedily wrapped:
+//            that is what strands "glassy sea;" alone on a centered line and makes
+//            a congregation stumble. See the ladder below.
 //   HEIGHT — too many lines for the box. THAT is what splitting a stanza is for.
+//
+// THE WIDTH LADDER, in order:
+//   1. It fits at 60px          -> render it.
+//   2. It carries a caesura (|) -> break there, and STAY at full size. Preferred:
+//      a hymn line has a natural mid-point, and breaking at it costs nothing but a
+//      line, where shrinking costs 20% of the type across the WHOLE song.
+//   3. No caesura               -> shrink the song toward the 48px floor, and tell
+//      the operator which line to mark. The deck still builds; it just asks.
+//   4. Not even at the floor    -> a hard warning. Never silently wrap.
+//
+// The division of labour is deliberate: the SCRIPT measures (it can, exactly), the
+// MODEL judges where the caesura falls (it can; a mechanical "break at the widest
+// gap" rule breaks lines somewhere musically wrong). Marking the caesura in the
+// song file makes that judgment durable and reviewable, and keeps the canonical
+// metrical line intact — the break is a PROJECTION decision, not a lyric edit.
 //
 // Widths come from a real glyph table (scripts/optima-metrics.json), not a
 // character count. The old `ceil(len / 55)` estimate was a monospace assumption
 // applied to a proportional face and was wrong by up to 24% of the box.
 
 const METRICS = JSON.parse(fs.readFileSync(path.join(__dirname, 'optima-metrics.json'), 'utf8'));
+
+/** The caesura marker: a `|` in a song's lyric line marks where it may be broken. */
+const CAESURA = '|';
+
+/** The line as sung — one metrical unit, marker removed. */
+const lineText = (line) => line.split(CAESURA).map((s) => s.trim()).filter(Boolean).join(' ');
+
+/** The pieces the line may be broken into. One element if it carries no caesura. */
+const lineParts = (line) => line.split(CAESURA).map((s) => s.trim()).filter(Boolean);
 
 /** Width of `text` in px at `size`, exactly as the browser will lay it out. */
 function textWidth(text, size) {
@@ -194,38 +217,56 @@ function textWidth(text, size) {
 const lineHeight = (size) => size * LINE_HEIGHT_RATIO;
 const linesPerSlide = (size) => Math.floor(CONTENT_H / lineHeight(size));
 
-/** How many rendered lines `line` becomes at `size` — greedy word wrap, as CSS does. */
-function wrapCount(line, size) {
-  if (textWidth(line, size) <= CONTENT_W) return 1;
-  let n = 1;
-  let cur = '';
-  for (const word of line.split(/\s+/)) {
-    const trial = cur ? `${cur} ${word}` : word;
-    if (textWidth(trial, size) <= CONTENT_W) cur = trial;
-    else { n++; cur = word; }
-  }
-  return n;
-}
-
-const renderedLines = (lines, size) => lines.reduce((n, l) => n + wrapCount(l, size), 0);
+const fits = (text, size) => textWidth(text, size) <= CONTENT_W;
 
 /**
- * The largest size in the ladder at which EVERY written line fits on one rendered
- * line. Returns null if even the floor cannot hold them — that is a judgment call
- * (re-break the line, or accept a wrap), so it is reported rather than decided.
+ * The lines actually rendered for one written line at `size`, and whether we had
+ * to fall back to a greedy wrap (which we never want, and always report).
+ */
+function renderLine(line, size) {
+  const whole = lineText(line);
+  if (fits(whole, size)) return { lines: [whole], wrapped: false };
+
+  const parts = lineParts(line);
+  if (parts.length > 1 && parts.every((p) => fits(p, size))) {
+    return { lines: parts, wrapped: false, broken: true };
+  }
+
+  // Nothing else worked: reproduce the browser's greedy wrap so the slide count is
+  // still honest, and let the caller raise it.
+  const out = [];
+  let cur = '';
+  for (const word of whole.split(/\s+/)) {
+    const trial = cur ? `${cur} ${word}` : word;
+    if (fits(trial, size)) cur = trial;
+    else { if (cur) out.push(cur); cur = word; }
+  }
+  if (cur) out.push(cur);
+  return { lines: out, wrapped: true };
+}
+
+const renderedLines = (lines, size) =>
+  lines.reduce((n, l) => n + renderLine(l, size).lines.length, 0);
+
+/**
+ * The largest size at which every written line either fits whole or breaks cleanly
+ * at its caesura. Null if even the floor cannot manage that.
  *
- * Takes ALL the stanzas of a song at once, deliberately. Fitting each stanza
- * on its own gives the same hymn a different size on every slide (verse 1 at
- * 56px, verse 2 at 48px), and the type visibly jumps as the operator advances.
- * One size per song: the smallest any of its stanzas needs.
+ * Takes ALL the stanzas of a song at once, deliberately. Fitting each stanza on its
+ * own gives the same hymn a different size on every slide (verse 1 at 56px, verse 2
+ * at 48px) and the type visibly jumps as the operator advances. One size per song.
  */
 function fitSize(stanzas, ladder = FONT_LADDER) {
   const lines = stanzas.flat();
-  return ladder.find((size) => lines.every((l) => textWidth(l, size) <= CONTENT_W)) ?? null;
+  return ladder.find((size) => lines.every((l) => !renderLine(l, size).wrapped)) ?? null;
 }
 
+/** Lines too wide at `size` that carry no caesura — the model should mark these. */
+const unmarked = (stanzas, size) =>
+  stanzas.flat().filter((l) => !fits(lineText(l), size) && lineParts(l).length === 1);
+
 // A line that ends a sentence/clause is a natural place to break a stanza.
-const isNaturalBreak = (line) => /[.;:!?]["'’”]?$/.test(line.trim());
+const isNaturalBreak = (line) => /[.;:!?]["'’”]?$/.test(lineText(line));
 
 /**
  * Split one stanza across as many slides as it needs AT A GIVEN SIZE. The size is
@@ -486,25 +527,22 @@ function build(deck, deckPath) {
    *
    * `stanzas` is [{ name, lines }] in projection order.
    */
-  const emitSong = ({ segment, song, stanzas, unverified, background, override }) => {
+  const emitSong = ({ segment, song, slug, stanzas, unverified, background, override }) => {
     const all = stanzas.map((s) => s.lines);
-    const fitted = fitSize(all);
-    const size = override ?? fitted ?? FONT_FLOOR;
+    const size = override ?? fitSize(all) ?? FONT_FLOOR;
     const slides = [];
 
     for (const { name, lines } of stanzas) {
       const chunks = layoutStanza(lines, size);
-      const first = lyricSlide(
-        `${song} · ${name}${chunks.length > 1 ? ' (1/' + chunks.length + ')' : ''}`,
-        unverified, background, chunks[0], size
-      );
-      slides.push(first);
-      for (let ci = 1; ci < chunks.length; ci++) {
-        slides.push(
-          lyricSlide(`${song} · ${name} (${ci + 1}/${chunks.length})`, unverified, background, chunks[ci], size)
-        );
-      }
+      chunks.forEach((chunk, ci) => {
+        const suffix = chunks.length > 1 ? ` (${ci + 1}/${chunks.length})` : '';
+        // Written lines -> the lines actually painted: a line with a caesura
+        // becomes two, and the marker itself never reaches a slide.
+        const rendered = chunk.flatMap((l) => renderLine(l, size).lines);
+        slides.push(lyricSlide(`${song} · ${name}${suffix}`, unverified, background, rendered, size));
+      });
       if (chunks.length > 1) {
+        const first = slides[slides.length - chunks.length];
         report.splits.push({
           segment, song, section: name, parts: chunks.length,
           slides: Array.from({ length: chunks.length }, (_, x) => first + x),
@@ -513,26 +551,43 @@ function build(deck, deckPath) {
       }
     }
 
-    if (size !== FONT_LADDER[0]) {
-      const widest = Math.round(Math.max(...all.flat().map((l) => textWidth(l, FONT_LADDER[0]))));
+    // Lines we had to break at their caesura. Not a problem — this is the preferred
+    // outcome — but the operator should know a line was split, and where.
+    const broken = all.flat().filter((l) => renderLine(l, size).broken);
+    if (broken.length) {
       report.typography.push({
-        segment, song, slides, size,
-        reason: override
-          ? `font size ${size}px set explicitly on this segment`
-          : `shrunk from ${FONT_LADDER[0]}px so every written line stays whole — the longest line is ${widest}px at ${FONT_LADDER[0]}px, and the slide is ${CONTENT_W}px wide. The whole song uses one size so the type does not jump between verses.`,
+        segment, song, slides, size, kind: 'caesura',
+        lines: broken.map((l) => ({ line: lineText(l), as: lineParts(l) })),
+        reason: `${broken.length} line(s) too wide for the slide at ${size}px were broken at the caesura marked in songs/${slug || song}.md, keeping the song at full size.`,
       });
     }
 
-    // The floor is the operator's readability limit for the back row, so we do not
-    // go below it — which means these lines WILL wrap mid-phrase. That is a
-    // judgment call (re-break the line, or accept it) and it belongs to a human,
-    // so say so loudly rather than quietly projecting an orphaned word.
-    const tooWide = all.flat().filter((l) => textWidth(l, size) > CONTENT_W);
-    if (tooWide.length) {
+    if (size !== FONT_LADDER[0]) {
+      // The lines that FORCED the shrink — measured at full size, which is where
+      // they didn't fit. (At the shrunk size they fit by construction.)
+      const needMarking = unmarked(all, FONT_LADDER[0]);
+      report.typography.push({
+        segment, song, slides, size, kind: override ? 'override' : 'shrunk',
+        reason: override
+          ? `font size ${size}px set explicitly on this segment.`
+          : `shrunk from ${FONT_LADDER[0]}px because ${needMarking.length} line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse ${FONT_LADDER[0] - size}px, so marking it is usually the better fix.`,
+        ...(override ? {} : {
+          fix: `Add a "|" at the caesura of the line(s) below in songs/${slug || song}.md to keep the song at ${FONT_LADDER[0]}px.`,
+          unmarked: needMarking.map(lineText),
+        }),
+      });
+    }
+
+    // The floor is the operator's readability limit for the back of the sanctuary,
+    // so we do not go below it — which means these lines WILL wrap mid-phrase.
+    // That is a judgment call and it belongs to a human, so say so loudly rather
+    // than quietly projecting an orphaned word.
+    const stillWrapping = all.flat().filter((l) => renderLine(l, size).wrapped);
+    if (stillWrapping.length) {
       report.warnings.push(
-        `${song}: ${tooWide.length} line(s) do not fit even at the ${size}px floor and will wrap mid-phrase. ` +
-        `Re-break the line in songs/${song}, or set "font_size" on this segment if smaller text is acceptable. ` +
-        `Longest: ${JSON.stringify(tooWide[0])}`
+        `${song}: ${stillWrapping.length} line(s) will WRAP MID-PHRASE — they do not fit at ${size}px and cannot be broken. ` +
+        `Mark a caesura with "|" in songs/${slug || song}.md, or set "font_size" on this segment if smaller text is acceptable. ` +
+        `Worst: ${JSON.stringify(lineText(stillWrapping[0]))}`
       );
     }
     return slides;
@@ -723,7 +778,7 @@ function build(deck, deckPath) {
           });
         } else {
           emitSong({
-            segment: i + 1, song: song.title, unverified, background,
+            segment: i + 1, song: song.title, slug: song.slug, unverified, background,
             override: seg.font_size,
             stanzas: names.map((name) => ({ name, lines: song.byName.get(name).lines })),
           });
