@@ -98,6 +98,39 @@ test('reference deck report carries the facts the skill reports back', () => {
   assert.match(lyrics.need, /lyrics/i);
 });
 
+// ── Asset base (bs-tiz.9) ────────────────────────────────────────────────────
+//
+// Backgrounds load from a configurable root so a hosted deck can point at S3
+// (specs/deck-publishing.md). The default must reproduce the historical
+// /templates/service/<file> exactly — that byte-identity is what keeps the
+// golden above valid — and a full origin must yield absolute URLs.
+
+test('--asset-base re-roots background URLs; default is unchanged', () => {
+  const deck = readDeck(REFERENCE_DECK);
+  const srcs = (html) => [...html.matchAll(/<img class="bg" src="([^"]*)"/g)].map((m) => m[1]);
+
+  // Default: bare absolute paths served by Express, as before.
+  const def = srcs(build(deck, REFERENCE_DECK).html);
+  assert.ok(def.length > 0, 'the reference deck has background images');
+  assert.ok(
+    def.every((s) => s.startsWith('/templates/service/')),
+    'default emits /templates/service/<file>'
+  );
+
+  // A full origin makes every background an absolute URL, filenames intact.
+  const base = 'https://cdn.example.com/templates/service';
+  const hosted = srcs(build(deck, REFERENCE_DECK, { assetBase: base }).html);
+  assert.deepEqual(
+    hosted,
+    def.map((s) => s.replace(/^\/templates\/service/, base)),
+    'each background is re-rooted at the asset base'
+  );
+
+  // A trailing slash on the base must not produce a doubled slash.
+  const slashed = srcs(build(deck, REFERENCE_DECK, { assetBase: base + '/' }).html);
+  assert.deepEqual(slashed, hosted, 'a trailing slash on the base is normalized away');
+});
+
 // ── Typography ──────────────────────────────────────────────────────────────
 //
 // The script used to estimate wrapping as ceil(chars / 55) — a monospace

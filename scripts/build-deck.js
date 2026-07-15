@@ -460,10 +460,20 @@ function format(errors, deckPath) {
 
 // ── Rendering ───────────────────────────────────────────────────────────────
 
-const bg = (file) => `/templates/service/${file}`;
+// Default media root: an absolute path served by Express in local/dev use. The
+// publish path (specs/deck-publishing.md) overrides this with a full origin
+// (e.g. https://<bucket>/templates/service) via --asset-base / DECK_ASSET_BASE,
+// so the emitted <img src> are absolute and resolve wherever the deck is opened
+// — a bucket root, an email preview, or saved to disk.
+const DEFAULT_ASSET_BASE = '/templates/service';
 
-function build(deck, deckPath) {
+function build(deck, deckPath, options = {}) {
   const songs = validate(deck, deckPath);
+
+  // Trailing slashes are stripped so `${assetBase}/${file}` is always clean. The
+  // default reproduces the historical `/templates/service/<file>` byte-for-byte.
+  const assetBase = String(options.assetBase ?? DEFAULT_ASSET_BASE).replace(/\/+$/, '');
+  const bg = (file) => `${assetBase}/${file}`;
 
   const month = parseInt(deck.date.slice(5, 7), 10);
   const season = deck.season || SEASON_BY_MONTH[month];
@@ -845,6 +855,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out' || a === '-o') args.out = argv[++i];
+    else if (a === '--asset-base') args.assetBase = argv[++i];
     else if (a === '--report') args.report = argv[++i];
     else if (a === '--quiet' || a === '-q') args.quiet = true;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -855,11 +866,17 @@ function parseArgs(argv) {
   return args;
 }
 
-const USAGE = `Usage: node scripts/build-deck.js <deck.json> [--out <file.html>] [--report <file.json>] [--quiet]
+const USAGE = `Usage: node scripts/build-deck.js <deck.json> [--out <file.html>] [--report <file.json>]
+                                    [--asset-base <url>] [--quiet]
 
 Renders passages/<date>/service-preview.html from a deck JSON file
 (see schemas/deck.schema.json). Prints a JSON report to stdout and writes
-it next to the HTML as service-report.json.`;
+it next to the HTML as service-report.json.
+
+--asset-base sets the root the slide backgrounds are loaded from (default
+"/templates/service", served by Express). Pass a full origin — e.g.
+https://<bucket>/templates/service — to emit absolute image URLs for a hosted
+deck. Also settable via the DECK_ASSET_BASE env var; the flag wins.`;
 
 function main() {
   let args;
@@ -883,9 +900,12 @@ function main() {
     process.exit(e instanceof SyntaxError ? 1 : 2);
   }
 
+  // Flag wins over env; if neither is set, build() falls back to DEFAULT_ASSET_BASE.
+  const assetBase = args.assetBase ?? process.env.DECK_ASSET_BASE;
+
   let result;
   try {
-    result = build(deck, deckPath);
+    result = build(deck, deckPath, { assetBase });
   } catch (e) {
     if (e instanceof DeckError) {
       console.error(e.message);
