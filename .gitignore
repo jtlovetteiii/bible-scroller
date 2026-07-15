@@ -8,6 +8,11 @@ passages/*.jpeg
 passages/*/*.jpeg
 passages/*/*.jpg
 passages/*/*.html
+# Generated build outputs. The deck JSON (service.deck.json) is the DURABLE input
+# the agent amends across a thread, so it is deliberately NOT ignored — only the
+# rendered report/preview, which are rebuilt from it, are. The reference output is
+# pinned as a test golden (tests/golden/), so nothing is lost by not tracking these.
+passages/*/service-report.json
 !passages/john-1-1-10.json
 !passages/test-point-1.jpg
 !passages/test-point-2.jpg
