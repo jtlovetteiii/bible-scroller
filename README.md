@@ -206,6 +206,35 @@ The simplicity of this approach makes it easy to use with file sync tools like O
 }
 ```
 
+## 🧪 Testing
+
+The repo has **three test surfaces with very different costs.** Know which you're
+running before you run it — one of them spends real money.
+
+| Command | Covers | Cost | When |
+|---|---|---|---|
+| `npm test` | The deterministic slide builder (`scripts/build-deck.js`): reference deck HTML + report goldens, the cardinal-rule build errors, the CLI contract. | Fast, free, offline | Anytime; before committing any change to the builder, schema, songs, or templates. |
+| `cd agent && uv run pytest` | Python agent unit tests — gate, dispatcher, SQLite store, Gmail tools, harness. | Fast, free, offline | Anytime; before committing agent changes. |
+| `cd agent && uv run pytest -m eval` | End-to-end **evals**: the real model runs `gen_service` against the actual example flowcharts. | **Slow (~8 min) and burns API tokens; needs subscription auth.** | Deliberately, after changing the `gen_service` skill or the batch contract. Not part of a routine test run. |
+
+A few things worth keeping straight:
+
+- **The evals are opt-in and do not run by default.** `uv run pytest` excludes
+  them (`-m "not eval"` in `agent/pyproject.toml`), so the normal suite stays fast
+  and offline. You only pay for the evals when you explicitly pass `-m eval`.
+- **`npm run test:update`** re-records the `build-deck.js` golden files *and*
+  rebuilds the reference preview (`passages/2026-06-28/`). Run it after an
+  intentional change to the renderer or templates, then eyeball the diff — the
+  goldens are the thing standing between a code change and a broken slide.
+- **Why the tests are shaped this way:** the model's only output is deck JSON and
+  everything downstream is deterministic, so the deterministic half is pinned by
+  cheap golden tests and the model's *judgment* is what the (expensive) evals
+  check. Full rationale in `specs/email-agent.md` §5.1–5.2.
+
+> Note: `npm test` and the evals cover the **service-slide builder and email agent**
+> subsystem (see `specs/email-agent.md`). The core Scripture-scrolling app has no
+> automated tests; it is verified by hand in the browser.
+
 ## 🔧 Development Roadmap
 
 | Milestone | Status | Description |
