@@ -17,6 +17,34 @@ This is a web application with a Node.js backend and vanilla JavaScript frontend
 - **passages/**: Directory containing JSON passage files for different services
 - **config.json**: Server configuration (passages directory path, port)
 
+### Service Slide Builder & Email Agent
+
+A second subsystem, layered on top of the scroller, generates ProPresenter slide
+decks for the *musical* portion of a service and (as the `bs-tiz` epic) can run
+unattended, driven by an emailed order of service. Full design:
+**`specs/email-agent.md`**. Key pieces:
+
+- **`.claude/commands/gen_service.md`**: the skill that turns an order of service
+  into a deck. Emits **deck JSON, never HTML**. Has an interactive mode (human in
+  the chat) and a non-interactive **batch mode** (whole order of service at once,
+  used by the agent).
+- **`scripts/build-deck.js`**: deterministic renderer — deck JSON → slide HTML +
+  a machine-readable `service-report.json`. Owns everything mechanical: slide
+  numbering, backgrounds, seasons, stanza splitting, and **typography**. Pinned by
+  `tests/build-deck.test.js` (`npm test`).
+- **`schemas/deck.schema.json`**: the deck JSON contract.
+- **`songs/`**: one Markdown file per song (frontmatter + `## Section` headings).
+  A `|` in a lyric line is a **caesura** — where the renderer may break that line
+  if it is too wide, rather than shrinking the whole song. Never shown on a slide.
+- **`agent/`**: the Python Claude Agent SDK harness, Gmail gate/tools, and SQLite
+  dispatcher. Tests: `cd agent && uv run pytest`; evals: `uv run pytest -m eval`.
+
+Two rules that are easy to violate: **the model emits data, not slide markup** —
+if a slide is wrong, fix `build-deck.js`, not the HTML; and **never hand-edit a
+generated `service-preview.html`** — it is rebuilt from the deck JSON on every
+change, so ad-hoc fixes must go into a durable input (the deck JSON or a
+`songs/*.md` file). See `specs/email-agent.md` §5.1.
+
 ### Key Technical Decisions
 
 - **No frontend framework**: Vanilla JavaScript for simplicity and offline reliability

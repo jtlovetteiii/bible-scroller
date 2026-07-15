@@ -1,9 +1,21 @@
 # Spec: Email Agent — Slide-Deck Agent Driven by Order-of-Service Email
 
-- **Status:** Draft for review (planning complete; implementation not started)
-- **Date:** 2026-07-11
+- **Status:** Implemented and live-verified end-to-end; deployment (`bs-tiz.6`) is the main remaining piece.
+- **Date:** 2026-07-11 (planning); updated 2026-07-15
 - **Epic:** `bs-tiz`
 - **Owner:** thomas
+
+> **Implementation status (2026-07-15).** The email plumbing is built and proven
+> live: a real `AI:` email was read from Gmail, handled on Sonnet, and answered
+> with a correct in-thread reply; idempotent on re-run; the agent declines to
+> reply when nothing is warranted. Done: the gate (`bs-tiz.1`), Gmail tools
+> (`bs-tiz.3`), dispatcher + SQLite store (`bs-tiz.2`), harness (`bs-tiz.4`),
+> spike (`bs-tiz.7`), deterministic build (`bs-c16`), batch mode (`bs-ixn`),
+> library-first lyrics (`bs-8yd`), and the special-music/congregational
+> distinction (`bs-fdn`). Remaining: reply/report composition (`bs-tiz.5`) and
+> the deployment host (`bs-tiz.6`). Sections 5–8 below have been reconciled with
+> what was actually built; §5 in particular corrects a framing the planning draft
+> got wrong.
 
 ---
 
@@ -134,7 +146,9 @@ After `gen_service` runs, the agent replies in-thread with:
 - the **link to the hosted deck**;
 - a **structured report** ("I already had verses 1–3 of Amazing Grace — check
   my work"; "you asked for a hymn we hadn't done, I added it to the library from
-  the Baptist Hymnal"; "check line wrapping / tell me if you want font tweaks");
+  the Baptist Hymnal"). Note: line wrapping and font sizing are **not** things the
+  agent asks about — they are handled deterministically (§5.1); the agent only
+  relays a `typography`/`warnings` entry when the script flags one;
 - critically, a **prompt-for-more-info loop** when a requested song has no
   lyrics ("you listed At the Cross as congregational but I don't have lyrics —
   reply with them, and note any repeats/bridge/extra chorus you sing").
@@ -166,18 +180,81 @@ instead of the subscription. Bake an env-scrub / assertion into the service.
 
 ## 5. The batch contract (the seam) — inside `bs-ixn`
 
-The interface between the agent and `gen_service`. Defining it is a deliverable
-of `bs-ixn` and unblocks the agent-behavior work.
+The interface between the agent and `gen_service`.
 
 - **In:** the order of service (emailed text) + fetched attachment paths + prior
   report/context for a reply.
 - **Out:** artifact path (the written `service-preview.html`) + a structured
-  report (verify-these / missing-these), with **zero blocking questions**.
+  machine-readable report (`passages/<date>/service-report.json`).
 
-Anything the interactive skill would have *asked* becomes a line in the report.
-`gen_service` today is human-in-the-loop; `bs-ixn` adds the non-interactive
-mode, `bs-c16` moves HTML generation into a deterministic JSON→HTML build, and
-`bs-8yd` forbids drafting lyrics from memory in batch mode.
+**Correction to the planning draft.** The draft said the contract has "zero
+blocking questions." That is misleading, and the implementation deliberately does
+not honour it literally. The agent asks questions *constantly* — it asks them **by
+email**. The real invariant is that the **process** never blocks waiting for an
+answer; the thread is the loop, and session resume (`bs-tiz.4`) is the mechanism.
+The two real flowchart examples (`examples/flowcharts.md`) each run three or four
+rounds of refinement.
+
+What a gap does depends on whether a slide can still honestly exist — **two tiers,
+handled differently:**
+
+- **Blocking** — a slide cannot sensibly be made (e.g. a "Quartet" line naming no
+  song: special music needs a title *and* a performer). The agent does **not**
+  generate; it replies asking, and builds once the answer arrives. It may *suggest*
+  the likely answer but must not assume it.
+- **Non-blocking** — the deck is still worth having (e.g. missing lyrics). The
+  agent emits a `title_only` slide, builds, and asks in the same reply. One
+  unresolved song must never cost the operator his whole deck.
+
+Report fields the agent acts on: `missing` (ask for these), `unverified` (flag
+for checking — looked-up lyrics land here), `splits`, `typography` (§5.1),
+`warnings`. Supporting pieces: `bs-c16` moved rendering into a deterministic
+JSON→HTML build; `bs-8yd` forbids drafting lyrics from memory in batch mode.
+
+### 5.1 The determinism funnel
+
+The load-bearing architectural idea, worth stating plainly because it shapes both
+the skill and how it is tested: **the model's only output is a small deck JSON;
+everything downstream of it is deterministic.** `scripts/build-deck.js` owns
+slide numbering, backgrounds, scrims, seasons, stanza splitting, HTML escaping,
+and typography — the model emits data, never markup. This is what lets the agent
+run unattended on a cheaper model: the model does only what requires judgment
+(read the flowchart, resolve songs, decide intent), and plain code does the rest
+reproducibly.
+
+**Typography is the clearest case, and the one to get right — sanctuary
+projection is the whole point.** A lyric line is a unit of metre and is **never
+greedily wrapped** (a wrap strands words like "glassy sea;" alone on a centered
+line and makes a congregation stumble). The script measures every line against the
+1196px slide with real Optima glyph widths (`scripts/optima-metrics.json`, exact
+to 0.00% error) and applies a ladder: fits at 60px → render; carries a **caesura**
+(`|` in the song file) → break there and stay at full size; too wide with no
+caesura → shrink the whole song toward a 48px readability floor and report which
+line to mark; unfittable even at the floor → a loud `warnings` line, never a
+silent wrap. Size is chosen **once per song** so type doesn't jump between verses.
+
+The division of labour mirrors §5's philosophy: the **script measures** (exactly),
+the **model judges** where a caesura falls (a mechanical "break at the widest gap"
+rule breaks hymns in musically wrong places). The `|` lives in `songs/*.md`, never
+on a slide; it declares where a line *may* break for projection without editing the
+canonical lyric, which keeps the fix durable and reviewable.
+
+**Corollary — never hand-edit the generated HTML.** The deck is rebuilt from the
+deck JSON on every reply, and the minister replies several times a week. An edit
+to `service-preview.html` survives until the next rebuild and then vanishes
+silently. Every ad-hoc fix goes into a **durable input** — the deck JSON or a
+`songs/*.md` file (including a caesura) — so it survives regeneration.
+
+### 5.2 Test strategy
+
+Because the model's output funnels to deck JSON, the deterministic half is pinned
+by golden tests (`tests/build-deck.test.js`: reference deck HTML + report,
+byte-for-byte; the cardinal-rule build errors; the CLI contract), and the model's
+judgment is checked by evals against the real flowcharts
+(`agent/tests/eval/`, `uv run pytest -m eval`). The evals stage an isolated repo
+with a **seeded** song library (so "already in the library" vs "must look it up"
+vs "must ask" is controlled) and assert on the deck's structure and the report —
+never on prose. This is what makes a nondeterministic agent testably repeatable.
 
 ## 6. Key decisions
 
@@ -211,19 +288,31 @@ directly.
   A crash between send-and-mark yields a rare duplicate reply — acceptable for
   POC, named here so it's a decision not a surprise.
 
-## 8. Verification (spike) — `bs-tiz.7`
+## 8. Verification (spike) — `bs-tiz.7` (done)
 
 Before building the harness, a short hands-on confirmation of the three
-assumptions the design rests on:
+assumptions the design rests on — **all three confirmed** (`agent/spike/FINDINGS.md`):
 
 1. Headless `claude-agent-sdk` query bills the **subscription** via
-   `CLAUDE_CODE_OAUTH_TOKEN` (with `ANTHROPIC_API_KEY` unset).
+   `CLAUDE_CODE_OAUTH_TOKEN` (with `ANTHROPIC_API_KEY` unset). Caveat learned:
+   `total_cost_usd` is *not* a billing signal; the subscription proof is
+   `RateLimitEvent.rate_limit_type == 'five_hour'`. `ANTHROPIC_API_KEY` silently
+   outranks the OAuth token, so `config.assert_subscription_auth()` hard-fails on it.
 2. A resumed session restores prior context across two **separate** process
    runs (`resume=session_id`, `session_id` from the init `SystemMessage`).
-3. `gen_service` **loads and runs** from `.claude/` inside an SDK query.
+3. `gen_service` **loads and runs** from `.claude/` inside an SDK query — but only
+   with `setting_sources=["project"]`, which fails **silently** if omitted.
 
 Note: `AskUserQuestion` is a built-in SDK tool but does **not** apply here (no
-interactive user) — this reinforces the non-interactive/report design.
+interactive user) — it would hang the run; reinforces the non-interactive design.
+
+**Failure mode found during eval runs (`bs-a1f`).** An agent whose job is
+reproducing hymn lyrics verbatim will occasionally have its output refused with
+`400 Output blocked by content filtering policy` (seen on an all-patriotic-hymns
+flowchart; nondeterministic, ~1 in 8 runs). This is *not* silence: the run ends
+without a terminal tool call, which trips the harness's "decided nothing" guard →
+`AgentError` → the dispatcher's failure path (§7) marks the thread failed,
+releases the claim, and retries. Hardening tracked in `bs-a1f`.
 
 ## 9. Sequencing
 
@@ -241,11 +330,12 @@ bs-tiz.8 (gen_service → SKILL.md) ─ pair with the bs-c16/bs-ixn rework
 bs-tiz.6 (deployment host)        ─ parallel infra
 ```
 
-**Parallel-startable now:** `bs-tiz.7` (spike), `bs-tiz.1` (gate), `bs-tiz.3`
-(Gmail tools), `bs-c16`, `bs-8yd`, `bs-tiz.8`.
-
-**Suggested first move:** `bs-tiz.7` — half a day, validates the three harness
-assumptions, unblocks `bs-tiz.4`; `bs-c16` and `bs-tiz.3` run fully in parallel.
+The DAG above is the original plan and still describes the dependencies
+faithfully; nearly all of it is now built (see the status note at the top).
+**Remaining:** `bs-tiz.5` (reply/report composition — the eval's `send_reply`
+stub is deliberately the seam it builds on) and `bs-tiz.6` (deployment host, the
+next session's focus). `bs-tiz.8` (migrate `gen_service` to `SKILL.md`) is
+optional cleanup.
 
 ## 10. Deferred / open
 
