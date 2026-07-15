@@ -162,6 +162,15 @@ off the tailnet.
 
 ### 4.6 Deployment host — `bs-tiz.6`
 
+> **Revised 2026-07-15 — deck delivery moved to S3.** The paragraphs below
+> describe the original *serve-off-the-host* delivery, which is superseded by
+> **`specs/deck-publishing.md`**. The agent still runs on one always-on
+> self-hosted box (CRON gate + dispatcher + agent on a shared filesystem), but the
+> reply link is now a **public S3 URL** the minister opens on his phone over the
+> internet — no tailnet for the minister, and a deliberate upload step
+> (`bs-tiz.10`/`bs-tiz.11`) replaces "no upload step." Read this section as the
+> agent-host requirements only; take deck delivery from `deck-publishing.md`.
+
 One always-on box — church server behind VPN or a Tailscale node — runs Express
 (serving the app and the generated `passages/` tree), the CRON gate, the
 dispatcher, and the agent, all on one filesystem. Serves both this feature and
@@ -260,7 +269,7 @@ never on prose. This is what makes a nondeterministic agent testably repeatable.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Artifact delivery | **Host the HTML** | Aligns with hosting the whole app; co-located agent → no upload step. Killed the self-contained-bundle idea. |
+| Artifact delivery | **Publish to S3** (revised 2026-07-15) | Decouples deck delivery from the agent host; minister opens it on his phone with no tailnet. Still not a self-contained bundle — a shared ~13-image template set beats inlining. See `specs/deck-publishing.md`. |
 | Harness | **Claude Agent SDK** (Python) | Claude Code as a library: native session resume, native skill loading, runs in our process on our filesystem. Not the API Tool Runner, not Managed Agents. |
 | Auth / billing | **Subscription OAuth token** | Personal-assistant use (task emailed *to* the operator), a defensible use of subscription credit. |
 | State store | **SQLite** | Transactional in-flight claim; avoids the JSON read/write race under overlapping heartbeats. |
@@ -339,8 +348,11 @@ optional cleanup.
 
 ## 10. Deferred / open
 
-- Minister-side link reachability (whether he's on the tailnet when he clicks).
-  Deferred; PDF-attachment fallback captured as optional AC on `bs-tiz.5`.
+- ~~Minister-side link reachability (whether he's on the tailnet when he clicks).~~
+  **Resolved 2026-07-15 (`specs/deck-publishing.md`):** decks publish to a public
+  S3 bucket and the minister opens them on his phone over the public internet, so
+  tailnet membership is no longer required on his side. The PDF-attachment fallback
+  is therefore no longer needed for reachability.
 - Every reply re-waking the agent (even "thanks!") costs tokens — POC-acceptable;
   the agent decides whether a reply needs action.
 - Future skills beyond `gen_service` — the harness is architected broad to
