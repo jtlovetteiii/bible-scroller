@@ -24,6 +24,7 @@ from claude_agent_sdk import (
 )
 
 from .config import REPO_ROOT, config, assert_subscription_auth
+from .publish import PUBLISH_TOOL_NAMES, publish_tools_server
 from .tools import GMAIL_TOOL_NAMES, gmail_tools_server
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 SEND_REPLY_TOOL = "mcp__gmail__send_reply"
 SKIP_REPLY_TOOL = "mcp__gmail__skip_reply"
 GET_THREAD_TOOL = "mcp__gmail__get_thread"
+PUBLISH_DECK_TOOL = "mcp__deck__publish_deck"
 
 #: A run must end in exactly one of these. Both are success; neither is.
 TERMINAL_TOOLS = {SEND_REPLY_TOOL, SKIP_REPLY_TOOL}
@@ -78,10 +80,17 @@ your reply.
 5. The tools do not convert attachments. If a PDF or Word document arrives, save it and \
 convert it yourself.
 
+6. A deck the minister cannot open is not a delivered deck. When you have built one and \
+are about to reply about it, publish it with `{PUBLISH_DECK_TOOL}` and put the URL it \
+returns in your email. Pass it the deck JSON, not the preview HTML — the local preview's \
+images only resolve against a local server, so a link to it would open as a deck with \
+every background missing. Re-publishing a corrected deck for the same date replaces it \
+at the same URL, so a link you already sent keeps working and shows the fix.
+
 When you do reply, write as a person would: what you built, a link to it, what you want \
 checked, what you still need. Not a status dump.
 
-The repo is at {REPO_ROOT}. Decks are served at {config.public_base_url}.
+The repo is at {REPO_ROOT}. Published decks are served at {config.deck_base_url}.
 """
 
 
@@ -96,13 +105,14 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
         model=config.agent_model,
         cwd=str(REPO_ROOT),
         system_prompt=SYSTEM_PROMPT,
-        mcp_servers={"gmail": gmail_tools_server()},
+        mcp_servers={"gmail": gmail_tools_server(), "deck": publish_tools_server()},
         # setting_sources=["project"] is what makes the SDK read the repo's
         # .claude/ directory. Without it the skills are invisible and the agent
         # silently has nothing to dispatch to.
         setting_sources=["project"],
         allowed_tools=[
             *GMAIL_TOOL_NAMES,
+            *PUBLISH_TOOL_NAMES,
             "Read", "Write", "Edit", "Glob", "Grep", "Bash", "WebSearch", "WebFetch",
         ],
         permission_mode="bypassPermissions",  # headless: nobody can approve a prompt

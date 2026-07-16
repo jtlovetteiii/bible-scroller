@@ -47,19 +47,63 @@ class Config:
     # --- State (bs-tiz.2) ---
     state_db_path: Path = REPO_ROOT / os.getenv("AGENT_STATE_DB", "agent/state.db")
 
-    # --- Deck output / links (bs-tiz.5, bs-tiz.6) ---
-    #: Where gen_service writes decks; served by Express.
+    # --- Deck output / links (bs-tiz.5, bs-tiz.6, bs-tiz.10) ---
+    #: Where gen_service writes decks; served by Express during local development.
     passages_dir: Path = REPO_ROOT / "passages"
-    #: Base URL the reply link is built from.
-    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
+
+    #: Public origin of the deck bucket (or a CDN in front of it). Everything the
+    #: minister's browser fetches — the deck HTML and the template images it
+    #: references — hangs off this one origin, so there is a single thing to
+    #: change when the bucket moves behind a custom domain.
+    #:
+    #: default_factory, not a plain default: a bare `os.getenv(...)` default is
+    #: evaluated once at import and would make a later `Config()` ignore the
+    #: environment (see `subject_pattern` above, same reason).
+    deck_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "DECK_BASE_URL",
+            "http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com",
+        )
+    )
+    #: Bucket the publish tool writes to. Named separately from `deck_base_url`
+    #: because the two stop being derivable from each other the moment a CDN or
+    #: custom domain fronts the bucket.
+    deck_bucket: str = field(
+        default_factory=lambda: os.getenv("DECK_BUCKET", "cbc-wilm-agent-public")
+    )
+    #: Key prefix for published decks. Paths are PERMANENT: an emailed link lives
+    #: in the mailbox forever, so this changing means old links rot.
+    deck_prefix: str = field(
+        default_factory=lambda: os.getenv("DECK_PREFIX", "decks").strip("/")
+    )
 
     #: Hard cap on a single agent run, so a wedged run can't hold its thread lock forever.
     agent_timeout_seconds: int = int(os.getenv("AGENT_TIMEOUT_SECONDS", "1800"))
     #: The model the agent runs on. Sonnet keeps API cost down — the point of the epic.
     agent_model: str = os.getenv("AGENT_MODEL", "claude-sonnet-5")
 
+    @property
+    def _origin(self) -> str:
+        return self.deck_base_url.rstrip("/")
+
+    def deck_key(self, service_date: str) -> str:
+        """S3 key for a published deck. The tool uploads EXACTLY this one object."""
+        return f"{self.deck_prefix}/{service_date}/index.html"
+
     def deck_url(self, service_date: str) -> str:
-        return f"{self.public_base_url}/passages/{service_date}/service-preview.html"
+        """Public URL emailed to the minister."""
+        return f"{self._origin}/{self.deck_key(service_date)}"
+
+    def deck_asset_base(self) -> str:
+        """Asset base passed to build-deck.js so backgrounds resolve from the bucket.
+
+        Must match where bs-tiz.11's template-sync script uploads the PNGs. It is
+        passed to Node as an explicit CLI argument, never via the environment:
+        nothing loads .env into the Node subprocess's process.env, so relying on
+        DECK_ASSET_BASE bleeding through would silently render a deck with
+        local-only image paths that 404 for the minister.
+        """
+        return f"{self._origin}/templates/service"
 
 
 def assert_subscription_auth() -> None:

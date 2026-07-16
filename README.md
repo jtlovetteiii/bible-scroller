@@ -271,6 +271,34 @@ support HTTPS. Fine for slide media; see `bs-a4a` if that ever needs to change.
 `terraform output` gives you the website endpoint (feed it to `build-deck.js` as
 the media asset base) and the user name.
 
+### Publishing a deck
+
+The agent publishes with the `publish_deck` tool
+(`agent/src/email_agent/publish.py`); by hand it's:
+
+```python
+from email_agent.publish import publish_deck
+publish_deck("examples/2026-06-28.deck.json")   # -> {"url": ..., "key": ...}
+```
+
+It takes the **deck JSON, not the preview HTML**, and re-renders before
+uploading. That is the part worth understanding: your local
+`passages/<date>/service-preview.html` is built with the default asset base
+(`/templates/service`), so its background paths only resolve against the Express
+dev server. Uploading that file gives you a deck with every background missing.
+Publishing renders a second copy with `--asset-base` pointed at the bucket and
+uploads *that*; your local preview is untouched.
+
+Exactly **one HTML object** goes up per deck — templates sync separately and
+rarely (`bs-tiz.11`), and there are no per-deck images.
+
+Configuration is three env vars (see `.env.example`): `DECK_BASE_URL` (the public
+origin everything hangs off), `DECK_BUCKET`, and `DECK_PREFIX`. Published paths
+are `<prefix>/<date>/index.html` and are **permanent by design** — an emailed link
+lives in the minister's mailbox forever, so a date-keyed scheme lets a future
+CloudFront + custom domain keep old links working. Re-publishing a date replaces
+the deck at the same URL, which is what you want after a correction.
+
 ### Access keys are created by hand — on purpose
 
 **Terraform does not manage the agent's access key**, and shouldn't: an
