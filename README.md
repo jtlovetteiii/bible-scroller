@@ -235,6 +235,56 @@ A few things worth keeping straight:
 > subsystem (see `specs/email-agent.md`). The core Scripture-scrolling app has no
 > automated tests; it is verified by hand in the browser.
 
+## ☁️ Infrastructure
+
+Generated decks are published to a public S3 bucket rather than served off the
+agent host (see `specs/deck-publishing.md`). That bucket and its IAM are
+**managed by Terraform in `infra/`** — don't click it together in the console, or
+the next `terraform apply` will fight you.
+
+```bash
+cd infra
+export AWS_PROFILE=<your-profile>   # the S3 backend needs this too, not just the provider
+terraform plan
+```
+
+What it creates:
+
+- **`cbc-wilm-agent-public`** — the deck bucket, configured as a static website.
+  ACLs are disabled (`BucketOwnerEnforced`); public read comes from a **bucket
+  policy** granting anonymous `s3:GetObject`. Consequence worth knowing: uploads
+  must **not** pass `--acl public-read`, which now hard-fails. Objects are public
+  by virtue of the policy alone.
+- **`cbc-wilm-agent-publisher`** — an IAM policy scoped to this one bucket:
+  `ListBucket`, `GetObject`, `PutObject`. No `DeleteObject`, so an unattended run
+  that goes wrong can't unmake past services. Add it if pruning is ever needed.
+- **`cbc-wilm-agent`** — a dedicated IAM user with that policy attached
+  directly, so the agent can be revoked and audited apart from any human.
+
+`terraform output` gives you the website endpoint (feed it to `build-deck.js` as
+the media asset base) and the user name.
+
+### Access keys are created by hand — on purpose
+
+**Terraform does not manage the agent's access key**, and shouldn't: an
+`aws_iam_access_key` resource writes the secret into the state file, where it
+would live forever. So after `terraform apply`:
+
+1. Create an access key for the `cbc-wilm-agent` user in the IAM console.
+2. Put it **only** in the agent host's environment (systemd `EnvironmentFile`,
+   `0600`, root-owned — not a `.env` in this repo).
+3. Verify with `aws sts get-caller-identity` that you get `cbc-wilm-agent` back
+   and not some other identity.
+
+The plan showing a user with no key is correct, not half-finished — Terraform
+doesn't track keys and won't report drift on one.
+
+Why a user with a key instead of a role: the agent runs on a self-hosted always-on
+box (`specs/email-agent.md` §4.6), so there's no EC2 instance profile to source
+temporary credentials from, and a user-assumes-role hop would add a trust policy
+without shrinking the blast radius. The scoping of `cbc-wilm-agent-publisher` is
+what limits the damage — worst case on a leak is read/write of slide media.
+
 ## 🔧 Development Roadmap
 
 | Milestone | Status | Description |

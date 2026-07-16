@@ -44,3 +44,13 @@ Thumbs.db
 .dolt/
 *.db
 .beads-credential-key
+
+# Terraform (infra/) — provider binaries and local state cache.
+# .terraform.lock.hcl is deliberately NOT ignored: it pins provider hashes and
+# belongs in git. Real state lives in the S3 backend, not on disk.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
