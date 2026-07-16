@@ -56,13 +56,23 @@ class Config:
     #: references — hangs off this one origin, so there is a single thing to
     #: change when the bucket moves behind a custom domain.
     #:
+    #: The S3 REST endpoint, NOT the static-website endpoint, and the https on it
+    #: is load-bearing (bs-a4a). Website endpoints cannot serve https at all. The
+    #: asset base is composed from this same origin and baked into the deck's
+    #: <img src> at render time, so an http origin yields http images — and a
+    #: browser BLOCKS insecure images on an https page. The deck then renders with
+    #: text and layout intact and every background silently missing, which is the
+    #: hardest kind of broken to notice. https works from either endpoint: mixed
+    #: content only bites secure pages loading insecure subresources, never the
+    #: reverse.
+    #:
     #: default_factory, not a plain default: a bare `os.getenv(...)` default is
     #: evaluated once at import and would make a later `Config()` ignore the
     #: environment (see `subject_pattern` above, same reason).
     deck_base_url: str = field(
         default_factory=lambda: os.getenv(
             "DECK_BASE_URL",
-            "http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com",
+            "https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com",
         )
     )
     #: Bucket the publish tool writes to. Named separately from `deck_base_url`

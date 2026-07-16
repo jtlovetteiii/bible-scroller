@@ -265,11 +265,30 @@ What it creates:
   images without tainting the html2canvas canvas and breaking Export. Decks
   served from the bucket are same-origin and don't need it.
 
-The deck URL is currently **`http://`**: S3 static website endpoints don't
-support HTTPS. Fine for slide media; see `bs-a4a` if that ever needs to change.
+### Use the REST endpoint, not the website endpoint
 
-`terraform output` gives you the website endpoint (feed it to `build-deck.js` as
-the media asset base) and the user name.
+`DECK_BASE_URL` must be the bucket's **REST** endpoint over **https**:
+
+```
+https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com     ← yes
+http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com   ← no
+```
+
+This bit is a trap, so it's worth knowing why. That origin is baked into every
+`<img src>` in the deck **at render time**. An `http` origin therefore means
+`http` images — and a browser silently **blocks** insecure images on an `https`
+page. The result is a deck whose text and layout are perfect and whose
+backgrounds are all missing, with nothing in the UI to say so. S3 static website
+endpoints cannot serve `https` at all, which is what rules them out.
+
+`https` is safe from either endpoint: mixed-content blocking only applies to
+insecure subresources on a secure page, never the reverse. The website
+configuration still exists in `infra/` and is harmless — nothing depends on its
+index-document suffix, because published decks are always explicit
+`.../index.html` paths.
+
+`terraform output` also emits `deck_website_endpoint`. **Don't feed that to
+`build-deck.js` or `DECK_BASE_URL`** — it's the `http` one.
 
 ### Syncing templates — run this when you change a background
 

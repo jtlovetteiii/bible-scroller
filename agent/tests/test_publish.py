@@ -74,6 +74,26 @@ def test_asset_base_matches_template_sync_location():
     assert config.deck_asset_base() == f"{config.deck_base_url.rstrip('/')}/templates/service"
 
 
+def test_default_origin_is_https_and_not_the_website_endpoint():
+    """bs-a4a. Regression: an http origin breaks the deck SILENTLY.
+
+    The origin is baked into every <img src> at render time, so http here means
+    http images — which browsers block on an https page, leaving a deck whose
+    text and layout are perfect and whose backgrounds are all gone. S3 website
+    endpoints cannot serve https at all, so they can never be this value.
+    """
+    assert config.deck_base_url.startswith("https://")
+    assert "s3-website" not in config.deck_base_url
+
+
+def test_asset_base_and_deck_link_share_one_origin():
+    """They must never diverge: same-origin images are why the happy path needs
+    no CORS, and a split origin reintroduces the mixed-content trap per-half."""
+    from urllib.parse import urlparse
+
+    assert urlparse(config.deck_asset_base()).netloc == urlparse(config.deck_url("2026-08-02")).netloc
+
+
 def test_origin_trailing_slash_does_not_double_up(monkeypatch):
     from email_agent.config import Config
 
