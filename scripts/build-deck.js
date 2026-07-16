@@ -475,6 +475,16 @@ function build(deck, deckPath, options = {}) {
   const assetBase = String(options.assetBase ?? DEFAULT_ASSET_BASE).replace(/\/+$/, '');
   const bg = (file) => `${assetBase}/${file}`;
 
+  // When the backgrounds load cross-origin — an absolute asset base, i.e. the
+  // hosted case — the <img> must opt into CORS with crossorigin="anonymous", or
+  // html2canvas taints the export canvas and canvas.toBlob() throws a
+  // SecurityError while the slides still look correct. The bucket's CORS headers
+  // (infra/s3.tf) are the other, necessary-but-not-sufficient half. A same-origin
+  // base (the default relative path) needs nothing, so the attribute — and the
+  // default golden — stay untouched.
+  const crossOrigin = /^[a-z][a-z0-9+.-]*:\/\//i.test(assetBase) || assetBase.startsWith('//');
+  const bgAttrs = crossOrigin ? ' crossorigin="anonymous"' : '';
+
   const month = parseInt(deck.date.slice(5, 7), 10);
   const season = deck.season || SEASON_BY_MONTH[month];
   if (!season) throw new DeckError(`${deckPath}: cannot derive a season from date "${deck.date}"`);
@@ -504,7 +514,7 @@ function build(deck, deckPath, options = {}) {
     const labelClass = unverified ? 'slide-label unverified' : 'slide-label';
     const labelText = `Slide ${n} — ${label}${unverified ? ' (VERIFY)' : ''}`;
     const useScrim = scrim != null ? scrim : SCRIM_BACKGROUNDS.has(background);
-    const body = [`  <img class="bg" src="${bg(background)}" alt="">`];
+    const body = [`  <img class="bg"${bgAttrs} src="${bg(background)}" alt="">`];
     if (useScrim) body.push('  <div class="scrim"></div>');
     if (inner) body.push(...inner);
     html.push(`<div class="${labelClass}">${escapeHtml(labelText)}</div>`);

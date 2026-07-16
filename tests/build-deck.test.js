@@ -107,7 +107,8 @@ test('reference deck report carries the facts the skill reports back', () => {
 
 test('--asset-base re-roots background URLs; default is unchanged', () => {
   const deck = readDeck(REFERENCE_DECK);
-  const srcs = (html) => [...html.matchAll(/<img class="bg" src="([^"]*)"/g)].map((m) => m[1]);
+  // Tolerant of any extra attributes (crossorigin) between class and src.
+  const srcs = (html) => [...html.matchAll(/<img class="bg"[^>]* src="([^"]*)"/g)].map((m) => m[1]);
 
   // Default: bare absolute paths served by Express, as before.
   const def = srcs(build(deck, REFERENCE_DECK).html);
@@ -129,6 +130,43 @@ test('--asset-base re-roots background URLs; default is unchanged', () => {
   // A trailing slash on the base must not produce a doubled slash.
   const slashed = srcs(build(deck, REFERENCE_DECK, { assetBase: base + '/' }).html);
   assert.deepEqual(slashed, hosted, 'a trailing slash on the base is normalized away');
+});
+
+// ── Cross-origin export (bs-517) ─────────────────────────────────────────────
+//
+// html2canvas rasterizes the background <img> into each exported JPEG. When the
+// image is cross-origin (a hosted deck), the element must carry
+// crossorigin="anonymous" or the browser never sends Origin, S3's CORS headers
+// go unused, the canvas is tainted, and canvas.toBlob() throws. Same-origin (the
+// default relative base) must NOT get the attribute — that keeps the golden
+// byte-identical and adds nothing the same-origin path needs.
+
+test('crossorigin is emitted only when the asset base is cross-origin', () => {
+  const deck = readDeck(REFERENCE_DECK);
+  const bgImgs = (html) => [...html.matchAll(/<img class="bg"[^>]*>/g)].map((m) => m[0]);
+
+  // Default (relative) and an explicitly relative base: no crossorigin.
+  for (const opts of [undefined, { assetBase: '/some/other/path' }]) {
+    const imgs = bgImgs(build(deck, REFERENCE_DECK, opts).html);
+    assert.ok(imgs.length > 0);
+    assert.ok(
+      imgs.every((t) => !t.includes('crossorigin')),
+      `same-origin base must not emit crossorigin (opts=${JSON.stringify(opts)})`
+    );
+  }
+
+  // Absolute bases (https, http, protocol-relative): every bg img opts into CORS.
+  for (const base of [
+    'https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com/templates/service',
+    'http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com/templates/service',
+    '//cdn.example.com/templates/service',
+  ]) {
+    const imgs = bgImgs(build(deck, REFERENCE_DECK, { assetBase: base }).html);
+    assert.ok(
+      imgs.every((t) => t.includes('<img class="bg" crossorigin="anonymous" src="')),
+      `cross-origin base ${base} must emit crossorigin="anonymous"`
+    );
+  }
 });
 
 // ── Typography ──────────────────────────────────────────────────────────────
