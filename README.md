@@ -271,6 +271,30 @@ support HTTPS. Fine for slide media; see `bs-a4a` if that ever needs to change.
 `terraform output` gives you the website endpoint (feed it to `build-deck.js` as
 the media asset base) and the user name.
 
+### Syncing templates — run this when you change a background
+
+```bash
+npm run sync-templates              # upload templates/service/*.png
+npm run sync-templates -- --dry-run # show what would go, change nothing
+```
+
+**This is an operator step, not something the agent does.** The slide
+backgrounds are a small shared set reused across every deck (`hymn-1.png` alone
+appears ~20× in one service), so they are uploaded once and left alone — that is
+what keeps publishing a deck down to a single HTML upload. Run this by hand
+**after you add or edit a template**, and not otherwise.
+
+Re-running is a no-op: `aws s3 sync` compares size and mtime, so an unchanged
+set takes under a second. It does **not** prune — renaming a template leaves the
+old object in the bucket, unreferenced and harmless. That is deliberate; the
+agent has no `DeleteObject` so a run that goes wrong cannot unmake past
+services.
+
+> **Heads-up:** the templates are currently ~188 MB, and a single deck pulls
+> ~71 MB of them on first load. That is bad on a phone, and it is tracked in
+> `bs-9x5` — the backgrounds are stored at ~3× the resolution the export path
+> actually uses. Until that lands, expect a hosted deck to be slow to open.
+
 ### Publishing a deck
 
 The agent publishes with the `publish_deck` tool

@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "build-deck": "node scripts/build-deck.js",
     "build-reference": "node scripts/build-deck.js examples/2026-06-28.deck.json",
+    "sync-templates": "bash scripts/sync-templates.sh",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:update": "UPDATE_GOLDEN=1 node --test \"tests/**/*.test.js\" && npm run build-reference"
   },
