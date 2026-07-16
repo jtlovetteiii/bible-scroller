@@ -260,6 +260,13 @@ What it creates:
   that goes wrong can't unmake past services. Add it if pruning is ever needed.
 - **`cbc-wilm-agent`** — a dedicated IAM user with that policy attached
   directly, so the agent can be revoked and audited apart from any human.
+- **CORS** (`GET`/`HEAD`, any origin) so a deck rendered *outside* the bucket —
+  a local preview built with `--asset-base` pointing at S3 — can load template
+  images without tainting the html2canvas canvas and breaking Export. Decks
+  served from the bucket are same-origin and don't need it.
+
+The deck URL is currently **`http://`**: S3 static website endpoints don't
+support HTTPS. Fine for slide media; see `bs-a4a` if that ever needs to change.
 
 `terraform output` gives you the website endpoint (feed it to `build-deck.js` as
 the media asset base) and the user name.

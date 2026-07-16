@@ -14,6 +14,30 @@ resource "aws_s3_bucket_website_configuration" "cbc-wilm-agent-public-website" {
   }
 }
 
+# Lets a deck rendered OUTSIDE this bucket (a local preview built with
+# --asset-base pointing here) load template images without tainting the
+# html2canvas canvas, which would make the Export button throw SecurityError
+# while the slides still render correctly. Decks served from the bucket itself
+# are same-origin and don't need this.
+#
+# This is only half the fix: the <img> tags must also carry
+# crossorigin="anonymous" or the browser never sends Origin and the response
+# headers go unused. That half lives in build-deck.js — see bs-517.
+#
+# allowed_origins is "*" because every object here is already anonymously
+# readable by the bucket policy; a narrower list would imply a confidentiality
+# this bucket does not have.
+resource "aws_s3_bucket_cors_configuration" "cbc-wilm-agent-public-cors" {
+  bucket = aws_s3_bucket.cbc-wilm-agent-public.id
+
+  cors_rule {
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["*"]
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
 # ACLs are disabled: object access is governed entirely by the bucket policy
 # below and by the agent's IAM policy in iam.tf.
 resource "aws_s3_bucket_ownership_controls" "cbc-wilm-agent-public-ownership" {
