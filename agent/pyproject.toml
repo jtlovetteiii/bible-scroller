@@ -12,6 +12,17 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.scripts]
+# Console scripts exist so the systemd unit can name an absolute path
+# (agent/.venv/bin/email-agent-heartbeat) instead of wrapping `uv run python -m
+# ...` — one fewer moving part in the ExecStart line, and no dependency on uv
+# resolving a lockfile at service-start time. See scripts/install-agent-host.sh.
+email-agent-heartbeat = "email_agent.heartbeat:main"
+email-agent-healthcheck = "email_agent.healthcheck:main"
+# Gmail consent is a human act in a browser, run once by hand. It is NOT wired to
+# a unit and must never be: the service cannot answer an OAuth prompt.
+email-agent-authorize = "email_agent.authorize:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
