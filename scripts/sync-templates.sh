@@ -9,8 +9,12 @@
 # OPERATOR STEP, NOT AN AGENT STEP. Run this by hand after you add or edit a
 # slide template. It is deliberately NOT part of publishing a deck: the
 # backgrounds are a small shared set reused across every deck, so publishing
-# stays a single HTML upload (bs-tiz.10) and these ~188MB of PNGs move only when
+# stays a single HTML upload (bs-tiz.10) and these ~109MB of PNGs move only when
 # they actually change.
+#
+# This syncs templates/service/ — the DERIVED copies. Run `npm run
+# optimize-templates` first if you have edited a master in
+# templates/service-masters/, or you will upload a stale background. (bs-9x5)
 #
 # Wraps `aws s3 sync` rather than hand-rolling uploads, which buys three things
 # that are easy to get wrong alone: idempotency (size+mtime, so re-running is a

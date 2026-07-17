@@ -19,6 +19,21 @@ the most recent message per spec, but a *single* column cannot answer "have we
 handled msg A?" once msg B has landed on top of it — and the gate legitimately
 re-emits older messages for the whole lookback window. The ledger is the
 authoritative idempotency check; the spec column is kept as the summary view.
+
+Fourth table, ``message_attempts`` (bs-9ed): the durable retry bound. A failing
+message is deliberately kept OUT of the ledger so the next pass retries it —
+which, with nothing counting, meant a poison message retried every heartbeat for
+the whole lookback window (7 days), each retry a full Sonnet run on the
+subscription. The counter has to live here rather than in the dispatcher because
+the heartbeat is a fresh process every tick: anything in memory resets to zero
+before it can ever bound anything.
+
+Why a table and not an ``attempts`` column on ``threads``: attempts are a fact
+about a *message*, and ``threads`` is keyed by ``thread_id`` — the wrong grain,
+since one thread carries many messages and each is retried independently.
+``processed_messages`` has the right key but the wrong meaning (it records only
+terminal facts, and a message being retried is by definition not in it). A new
+table is also the whole migration story — see ``SCHEMA``.
 """
 
 from __future__ import annotations
@@ -64,8 +79,29 @@ CREATE TABLE IF NOT EXISTS agent_sent_messages (
     sent_at   REAL NOT NULL
 );
 
+-- The retry bound (bs-9ed). One row per message we have STARTED a run for,
+-- whether or not that run ever came back.
+--
+-- MIGRATION: this is a new *table*, not a new column, and that is deliberate.
+-- Every real deployment already has a state.db whose tables were created by an
+-- earlier version of this SCHEMA; `CREATE TABLE IF NOT EXISTS threads (...)`
+-- against an existing DB is a silent no-op, so a column added to that statement
+-- would never appear and every read of it would raise OperationalError on the
+-- exact box we cannot watch. A new table has no such problem: IF NOT EXISTS
+-- creates it on the next StateStore() construction and leaves the existing rows
+-- untouched. No ALTER TABLE, no version stamp, no backfill (absent row == zero
+-- attempts, which is the correct reading for a message we have never run).
+CREATE TABLE IF NOT EXISTS message_attempts (
+    msg_id           TEXT NOT NULL PRIMARY KEY,
+    thread_id        TEXT NOT NULL,
+    attempts         INTEGER NOT NULL DEFAULT 0,
+    first_attempt_at REAL NOT NULL,
+    last_attempt_at  REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_processed_thread ON processed_messages (thread_id);
 CREATE INDEX IF NOT EXISTS idx_agent_sent_thread ON agent_sent_messages (thread_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_thread ON message_attempts (thread_id);
 """
 
 
@@ -179,6 +215,46 @@ class StateStore:
             ).fetchone()
         return row is not None
 
+    # --- the retry bound (bs-9ed) -------------------------------------------
+
+    def attempt_count(self, msg_id: str) -> int:
+        """How many runs have been STARTED for this message. 0 if never seen."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT attempts FROM message_attempts WHERE msg_id = ?", (msg_id,)
+            ).fetchone()
+        return int(row["attempts"]) if row else 0
+
+    def record_attempt(self, thread_id: str, msg_id: str) -> int:
+        """Count one attempt at ``msg_id``; return the new total.
+
+        Called by the dispatcher *before* the run, not after it fails — see the
+        note at ``Dispatcher._dispatch_one``. A single atomic upsert, for the same
+        reason ``claim`` is: two overlapping heartbeats must not read-then-write
+        the same counter and lose an increment.
+        """
+        now = time.time()
+        with self._connect() as conn:
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    "INSERT INTO message_attempts "
+                    "  (msg_id, thread_id, attempts, first_attempt_at, last_attempt_at) "
+                    "VALUES (?, ?, 1, ?, ?) "
+                    "ON CONFLICT(msg_id) DO UPDATE SET "
+                    "  attempts = message_attempts.attempts + 1, "
+                    "  last_attempt_at = excluded.last_attempt_at",
+                    (msg_id, thread_id, now, now),
+                )
+                row = conn.execute(
+                    "SELECT attempts FROM message_attempts WHERE msg_id = ?", (msg_id,)
+                ).fetchone()
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+        return int(row["attempts"])
+
     # --- the claim ----------------------------------------------------------
 
     def claim(self, thread_id: str, *, stale_after_seconds: float, now: float | None = None) -> bool:
@@ -285,6 +361,13 @@ class StateStore:
         The message is deliberately NOT added to the ledger, so the next pass
         retries it. A session_id captured before the failure is still worth
         keeping — a retry can resume that session rather than start cold.
+
+        That retry is bounded by ``record_attempt`` / ``attempt_count``
+        (bs-9ed), which the dispatcher consults before ever getting here. This
+        method stays purely about the claim: the counter is incremented at the
+        *start* of a run, so a run that never returns at all — the process was
+        killed, the box rebooted — still consumes its attempt without ever
+        reaching this call.
         """
         now = time.time()
         with self._connect() as conn:

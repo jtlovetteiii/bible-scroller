@@ -2,18 +2,23 @@
 
     cd agent && uv run python -m email_agent.healthcheck
 
-Exists because both of this agent's credentials fail **silently and on a delay**:
+Exists because every credential this agent holds fails **silently and on a
+delay** — nothing surfaces until the agent is mid-run, which in practice means
+fifteen minutes before a service:
 
-  * A Gmail refresh token dies with `invalid_grant` — and if the OAuth app's
-    publishing status is "Testing", Google kills it after 7 days. A Testing token
-    and a production one are indistinguishable for the first week, so the only way
-    to know publishing really took is to still be working on day 8+.
+  * A Gmail refresh token dies with `invalid_grant`. Nothing announces it; the
+    next poll simply stops working. Only a live API call can tell you.
   * `ANTHROPIC_API_KEY` appearing in the environment silently outranks
     `CLAUDE_CODE_OAUTH_TOKEN` and bills a pay-per-token account instead of the
     subscription.
+  * The AWS SDK's credential chain puts environment variables ABOVE
+    `~/.aws/credentials`, so a stray `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` in the
+    host environment publishes decks to the wrong account — or, worse, succeeds
+    as an over-privileged identity like root, which works and therefore hides
+    the misconfiguration until the day it doesn't.
 
-Neither shows up until the agent is mid-run. Run this on a schedule so it fails on
-a Tuesday, not fifteen minutes before a service.
+Run this on a schedule so it fails on a Tuesday, not on a Saturday night with
+the deck already built.
 """
 
 from __future__ import annotations
@@ -21,21 +26,105 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sys
+from typing import Any
 
 from .config import config, assert_subscription_auth
 from .gmail_client import gmail_service
 
+#: The ONLY identity allowed to publish. Root or a personal profile is a FAIL,
+#: not a pass: both can write to the bucket, which is exactly why they mask a
+#: broken credential chain instead of exposing it.
+AGENT_ARN_SUFFIX = ":user/cbc-wilm-agent"
 
-def _token_age_days() -> float | None:
-    """Days since the refresh token was issued, inferred from the file's mtime.
+#: One fixed key, overwritten on every run. The agent user has ListBucket /
+#: GetObject / PutObject and deliberately NOT DeleteObject (bs-crp), so the
+#: probe object cannot clean itself up — overwrite is allowed and proven, and
+#: adding Delete to the policy just to tidy up would widen it for no reason.
+PROBE_KEY = "_policy-probe/healthcheck.txt"
 
-    Crude, but the number that matters: crossing ~7 days while still working is
-    the evidence that the OAuth app is genuinely published.
-    """
-    if not config.gmail_token_path.exists():
-        return None
-    mtime = dt.datetime.fromtimestamp(config.gmail_token_path.stat().st_mtime)
-    return (dt.datetime.now() - mtime).total_seconds() / 86400
+
+def _aws_clients(sts: Any | None = None, s3: Any | None = None) -> tuple[Any, Any]:
+    """boto3 is imported locally, as in publish.py: keeps it off the test import path."""
+    if sts is not None and s3 is not None:
+        return sts, s3
+    import boto3
+
+    return sts or boto3.client("sts"), s3 or boto3.client("s3")
+
+
+def check_aws(*, sts: Any | None = None, s3: Any | None = None) -> list[str]:
+    """Print OK/FAIL lines for AWS; return a list of failure strings (empty == healthy)."""
+    failures: list[str] = []
+
+    try:
+        sts_client, s3_client = _aws_clients(sts, s3)
+    except Exception as exc:  # noqa: BLE001
+        failures.append(f"aws: cannot build clients: {type(exc).__name__}: {exc}")
+        print(f"FAIL  aws: cannot build clients: {type(exc).__name__}: {exc}")
+        return failures
+
+    # --- Identity: WHO are we, really? ---
+    try:
+        arn = sts_client.get_caller_identity()["Arn"]
+    except Exception as exc:  # noqa: BLE001
+        failures.append(f"aws: sts:GetCallerIdentity failed: {type(exc).__name__}: {exc}")
+        print(f"FAIL  aws: sts:GetCallerIdentity failed: {type(exc).__name__}: {exc}")
+        print("      -> no usable AWS credentials; publishing will fail mid-run")
+        return failures
+
+    if not arn.endswith(AGENT_ARN_SUFFIX):
+        failures.append(f"aws: wrong identity — expected *{AGENT_ARN_SUFFIX}, got {arn}")
+        print("FAIL  aws: wrong identity")
+        print(f"      -> expected an Arn ending in {AGENT_ARN_SUFFIX}")
+        print(f"      -> actual   {arn}")
+        print("      -> env vars outrank ~/.aws/credentials: check AWS_PROFILE /")
+        print("         AWS_ACCESS_KEY_ID. Publishing as this identity may WORK and")
+        print("         still be wrong.")
+        return failures
+
+    print(f"OK    aws: authenticated as {arn}")
+
+    # --- Publisher policy: prove Put and Get against the real bucket ---
+    body = f"healthcheck {dt.datetime.now().isoformat()}\n".encode()
+    try:
+        s3_client.put_object(
+            Bucket=config.deck_bucket,
+            Key=PROBE_KEY,
+            Body=body,
+            ContentType="text/plain; charset=utf-8",
+        )
+    except Exception as exc:  # noqa: BLE001
+        failures.append(
+            f"aws: PutObject s3://{config.deck_bucket}/{PROBE_KEY} failed: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        print(f"FAIL  aws: cannot write to s3://{config.deck_bucket}/{PROBE_KEY}")
+        print(f"      -> {type(exc).__name__}: {exc}")
+        print("      -> the key authenticates but lacks the publisher policy")
+        return failures
+
+    try:
+        got = s3_client.get_object(Bucket=config.deck_bucket, Key=PROBE_KEY)["Body"].read()
+    except Exception as exc:  # noqa: BLE001
+        failures.append(
+            f"aws: GetObject s3://{config.deck_bucket}/{PROBE_KEY} failed: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        print(f"FAIL  aws: cannot read back s3://{config.deck_bucket}/{PROBE_KEY}")
+        print(f"      -> {type(exc).__name__}: {exc}")
+        return failures
+
+    if got != body:
+        failures.append(
+            f"aws: probe read-back mismatch at s3://{config.deck_bucket}/{PROBE_KEY}"
+        )
+        print("FAIL  aws: probe read-back does not match what was written")
+        return failures
+
+    print(f"OK    aws: Put+Get verified on s3://{config.deck_bucket}/{PROBE_KEY}")
+    # The probe object stays: the agent cannot DeleteObject by design (bs-crp).
+    # The next run overwrites this same key.
+    return failures
 
 
 def main() -> int:
@@ -71,22 +160,14 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         failures.append(f"gmail scopes unreadable: {exc}")
 
-    # --- The 7-day tell ---
-    age = _token_age_days()
-    if age is not None:
-        if age >= 7:
-            print(f"OK    gmail: refresh token is {age:.1f} days old and still valid")
-            print("      -> past the 7-day Testing-status cliff; the OAuth app is genuinely published")
-        else:
-            print(f"WARN  gmail: refresh token is only {age:.1f} days old")
-            print("      -> too young to prove the OAuth app is published. If it dies around day 7,")
-            print("         the app is still in 'Testing' status in Google Cloud Console (bs-xy9).")
+    # --- AWS: right identity, and a key that can actually publish ---
+    failures.extend(check_aws())
 
     print()
     if failures:
         print(f"UNHEALTHY — {len(failures)} problem(s). The agent will NOT work.")
         return 1
-    print("HEALTHY — the agent can read mail, send mail, and reach Claude.")
+    print("HEALTHY — the agent can read mail, send mail, reach Claude, and publish.")
     return 0
 
 

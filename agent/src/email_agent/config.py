@@ -92,6 +92,23 @@ class Config:
     #: The model the agent runs on. Sonnet keeps API cost down — the point of the epic.
     agent_model: str = os.getenv("AGENT_MODEL", "claude-sonnet-5")
 
+    #: How many times one message may be attempted before the dispatcher gives up
+    #: on it, apologises once, and drops it from the retry pool (bs-9ed).
+    #:
+    #: Why 3. The bound exists because a failing message is otherwise retried
+    #: every heartbeat for the whole `lookback_days` window — at a 60s poll, up to
+    #: thousands of Sonnet runs against a *subscription* quota, which starves the
+    #: agent of the capacity to answer the real request on Saturday night. So the
+    #: number has to be small. It cannot be 1: the failures we actually see are
+    #: transient (a Gmail 503, a network blip, content filtering, which bs-a1f
+    #: measures at ~12% and is nondeterministic), and one retry of a ~12% flake
+    #: still fails 12% of the time. 3 attempts takes that to ~0.2% while capping
+    #: the worst case at 3 wasted runs per poison message — cheap enough that a
+    #: mailbox full of them cannot meaningfully dent the quota. Beyond 3 the
+    #: marginal rescue is negligible and the minister just waits longer to hear
+    #: that something went wrong.
+    max_attempts_per_message: int = int(os.getenv("AGENT_MAX_ATTEMPTS", "3"))
+
     @property
     def _origin(self) -> str:
         return self.deck_base_url.rstrip("/")

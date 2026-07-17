@@ -56,13 +56,20 @@ def run_once(*, dry_run: bool = False) -> int:
     dispatcher = Dispatcher(StateStore(config.state_db_path), _load_run_agent(), config)
     result = dispatcher.dispatch(messages)
     log.info(
-        "heartbeat: processed=%d in_flight=%d already_done=%d failed=%d reaped=%d",
+        "heartbeat: processed=%d in_flight=%d already_done=%d failed=%d reaped=%d "
+        "gave_up=%d",
         len(result.processed),
         len(result.skipped_in_flight),
         len(result.skipped_already_processed),
         len(result.failed),
         len(result.reaped),
+        len(result.gave_up),
     )
+    if result.gave_up:
+        # Retiring a message is the one outcome nobody will otherwise notice: it
+        # looks like success (the thread goes quiet) but the minister got an
+        # apology instead of slides.
+        log.error("gave up on message(s) after exhausting retries: %s", result.gave_up)
     return 1 if result.failed else 0
 
 

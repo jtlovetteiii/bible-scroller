@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from email_agent.dispatcher import Dispatcher
+from email_agent.dispatcher import APOLOGY_BODY, Dispatcher
 from email_agent.gate import GatedMessage
 from email_agent.store import DONE, FAILED, IN_FLIGHT, StateStore
 
@@ -185,6 +185,157 @@ def test_agent_error_marks_failed_releases_the_claim_and_retries(cfg, store):
 
     assert ok.calls == [("t1", "m1", None)]
     assert store.get("t1").status == DONE
+
+
+# --- the retry bound (bs-9ed) ----------------------------------------------
+
+
+class RecordingSend:
+    """Fake `tools.send_reply`. Records every apology; optionally refuses to send."""
+
+    def __init__(self, *, fail: bool = False):
+        self.calls: list[dict] = []
+        self.fail = fail
+
+    def __call__(self, thread_id: str, body: str, *, store=None):
+        self.calls.append({"thread_id": thread_id, "body": body, "store": store})
+        if self.fail:
+            raise RuntimeError("gmail is down")
+        return {"id": f"apology-{len(self.calls)}", "threadId": thread_id}
+
+
+def test_persistently_failing_message_is_bounded_apologised_once_and_retired(cfg, store):
+    """bs-9ed. Before the bound existed this ran the agent on EVERY tick for the
+    whole 7-day lookback window — thousands of Sonnet runs on the subscription —
+    and never told the minister anything.
+    """
+    agent = RecordingAgent(fail=True)
+    send = RecordingSend()
+    dispatcher = Dispatcher(store, agent, cfg, send_reply=send)
+
+    results = [dispatcher.dispatch([initial("m1")]) for _ in range(10)]
+
+    # Bounded: the agent ran max_attempts times, not once per pass.
+    assert len(agent.calls) == cfg.max_attempts_per_message
+
+    # Exactly one apology, to the right thread, with the fixed body (no LLM).
+    assert len(send.calls) == 1
+    assert send.calls[0]["thread_id"] == "t1"
+    assert send.calls[0]["body"] == APOLOGY_BODY
+
+    # ...and it went out through the store, so `mark_agent_sent` records our
+    # authorship and the gate can never hand the apology back as a new request.
+    assert send.calls[0]["store"] is store
+
+    # Retired on the pass that crossed the bound, and never touched again.
+    n = cfg.max_attempts_per_message
+    assert [i for i, r in enumerate(results) if r.gave_up == ["m1"]] == [n - 1]
+    # Every pass after that is a no-op: no agent, no mail, just the ledger.
+    assert all(r.skipped_already_processed == ["m1"] for r in results[n:])
+    assert all(r.failed == [] and r.gave_up == [] for r in results[n:])
+    assert store.is_processed("m1") is True
+    assert store.get("t1").status == DONE  # claim released, thread not wedged
+
+
+def test_give_up_is_terminal_even_when_the_apology_cannot_be_sent(cfg, store):
+    """The subtle half of bs-9ed.
+
+    If a failed apology kept the message in the retry pool, the unbounded loop
+    would simply move up a level — the same message re-entering the give-up path
+    on every pass forever, now hammering Gmail instead of the model.
+    """
+    cfg = dataclasses.replace(cfg, max_attempts_per_message=2)
+    agent = RecordingAgent(fail=True)
+    send = RecordingSend(fail=True)
+    dispatcher = Dispatcher(store, agent, cfg, send_reply=send)
+
+    for _ in range(6):
+        dispatcher.dispatch([initial("m1")])
+
+    assert len(agent.calls) == 2  # still bounded
+    assert len(send.calls) == 1  # tried once, failed, never retried
+    assert store.is_processed("m1") is True  # left the pool ANYWAY
+    assert store.get("t1").status == DONE
+
+
+def test_attempts_are_counted_before_the_run_so_a_lost_process_still_pays(cfg, store):
+    """A run that never returns — killed process, reboot, reaped timeout — never
+    reaches the failure handler. Counting on the way *in* is what bounds it.
+    """
+    seen: list[int] = []
+
+    def agent(thread_id: str, msg_id: str, session_id: str | None) -> str:
+        seen.append(store.attempt_count(msg_id))  # mid-run: already counted
+        return "sess-x"
+
+    Dispatcher(store, agent, cfg).dispatch([initial("m1")])
+
+    assert seen == [1]
+
+
+def test_the_attempt_counter_survives_a_restart(cfg):
+    """The heartbeat is a fresh process every tick, so an in-memory counter would
+    reset to zero before it ever bounded anything. Separate StateStore instances
+    on the same file stand in for separate processes.
+    """
+    agent = RecordingAgent(fail=True)
+    send = RecordingSend()
+
+    for _ in range(5):
+        # A brand-new store + dispatcher per pass, as CRON gives us.
+        Dispatcher(StateStore(cfg.state_db_path), agent, cfg, send_reply=send).dispatch(
+            [initial("m1")]
+        )
+
+    assert len(agent.calls) == cfg.max_attempts_per_message
+    assert len(send.calls) == 1
+
+
+def test_the_bound_is_per_message_not_per_thread(cfg, store):
+    """One poison message must not retire its thread's other traffic."""
+    cfg = dataclasses.replace(cfg, max_attempts_per_message=1)
+    send = RecordingSend()
+    poison = RecordingAgent(fail=True)
+
+    Dispatcher(store, poison, cfg, send_reply=send).dispatch([initial("m1")])
+    assert store.is_processed("m1") is True  # retired
+
+    # A reply on the SAME thread is unaffected and still runs.
+    ok = RecordingAgent()
+    result = Dispatcher(store, ok, cfg, send_reply=send).dispatch([reply("m2")])
+
+    assert result.processed == ["m2"]
+    assert len(ok.calls) == 1
+
+
+def test_an_exhausted_message_is_retired_without_running_the_agent_again(cfg, store):
+    """The pre-run guard, independently of the eager give-up.
+
+    Reachable when a pass is killed between recording its attempt and reaching
+    the failure handler — exactly the unattended-box case, where the runs that
+    kill the process are the ones nobody is there to see.
+    """
+    for _ in range(cfg.max_attempts_per_message):
+        store.record_attempt("t1", "m1")  # a previous process's attempts
+
+    agent = RecordingAgent(fail=True)
+    send = RecordingSend()
+    result = Dispatcher(store, agent, cfg, send_reply=send).dispatch([initial("m1")])
+
+    assert agent.calls == []  # not one more Sonnet run
+    assert result.gave_up == ["m1"]
+    assert len(send.calls) == 1
+    assert store.is_processed("m1") is True
+
+
+def test_a_healthy_message_never_apologises(cfg, store):
+    send = RecordingSend()
+    dispatcher = Dispatcher(store, RecordingAgent(), cfg, send_reply=send)
+
+    result = dispatcher.dispatch([initial("m1")])
+
+    assert result.processed == ["m1"] and result.gave_up == []
+    assert send.calls == []
 
 
 def test_message_is_marked_processed_only_after_the_agent_returns(cfg, store):
