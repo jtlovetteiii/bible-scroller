@@ -1,0 +1,17 @@
+{
+  "date": "2026-07-19",
+  "notes": "From minister of music's flowchart email (Sat 7/18/26, subject 'AI: Flowchart 7/19/26'). All six congregational/special songs are new to the library; none had lyrics on file, so every song segment is title_only pending the operator sending text.",
+  "segments": [
+    { "type": "preshow" },
+    { "type": "prelude", "title": "How Great Thou Art", "performer": "Hank Howle" },
+    { "type": "welcome" },
+    { "type": "song", "song": "a-mighty-fortress-is-our-god", "title_only": true },
+    { "type": "song", "song": "the-lily-of-the-valley", "title_only": true },
+    { "type": "special_music", "song": "days-of-elijah", "performer": "Choir" },
+    { "type": "song", "song": "before-the-throne-of-god-above", "role": "praise", "title_only": true },
+    { "type": "song", "song": "revelation-song", "role": "praise", "title_only": true },
+    { "type": "sermon_transition" },
+    { "type": "song", "song": "my-jesus-i-love-thee", "role": "invitation", "title_only": true },
+    { "type": "closing_prayer" }
+  ]
+}
