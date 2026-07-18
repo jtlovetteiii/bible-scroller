@@ -21,6 +21,7 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     SystemMessage,
+    TextBlock,
     ToolUseBlock,
     query,
 )
@@ -169,6 +170,13 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
     new_session_id: str | None = session_id
     terminal: set[str] = set()
     result: ResultMessage | None = None
+    #: The model's last text block. When the CLI aborts a turn on an API-level
+    #: error (e.g. a content-filter block), it delivers that as the assistant's
+    #: final words — "API Error: 400 Output blocked by content filtering policy"
+    #: — then exits non-zero with an *empty* error body. The SDK can only echo
+    #: the result subtype, which on this host surfaced as the literal, useless
+    #: word "success" (bs-zwj). Keep the real message so we can raise with it.
+    last_text: str | None = None
 
     try:
         async for message in query(prompt=prompt, options=options):
@@ -180,13 +188,15 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
                 for block in message.content:
                     if isinstance(block, ToolUseBlock) and block.name in TERMINAL_TOOLS:
                         terminal.add(block.name)
+                    elif isinstance(block, TextBlock) and block.text.strip():
+                        last_text = block.text.strip()
             elif isinstance(message, ResultMessage):
                 result = message
                 new_session_id = new_session_id or getattr(message, "session_id", None)
 
         if result is not None and getattr(result, "is_error", False):
             raise AgentError(f"agent run errored: {getattr(result, 'result', result)!r}")
-    except BaseException:
+    except BaseException as exc:
         # BaseException, not Exception: a timeout cancels this scope with
         # CancelledError, and the CLI's dying words are exactly what you want
         # when a run wedged. We only log and re-raise — the dispatcher still owns
@@ -197,6 +207,21 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
                 "claude-cli stderr tail for thread %s msg %s (%d line[s]):\n%s",
                 thread_id, msg_id, len(cli_stderr), "\n".join(cli_stderr),
             )
+        # An API-level abort (content filter, overload, etc.) leaves the CLI's
+        # error body empty, so the SDK's exception degrades to a bare subtype
+        # like "success" — useless in the journal. The real reason is the
+        # model's last words; re-raise with those. Only for a genuine Exception:
+        # a CancelledError (timeout) must propagate untouched, and its final
+        # text would be misleading anyway.
+        if (
+            isinstance(exc, Exception)
+            and not isinstance(exc, AgentError)
+            and last_text
+            and last_text.startswith("API Error")
+        ):
+            raise AgentError(
+                f"agent run aborted by an API error: {last_text}"
+            ) from exc
         raise
 
     # A run must end in a deliberate terminal action: it either replied, or it

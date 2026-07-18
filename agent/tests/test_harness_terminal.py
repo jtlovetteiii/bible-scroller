@@ -148,6 +148,70 @@ def test_cli_stderr_tail_is_logged_when_a_run_fails(monkeypatch, caplog):
     assert "at frame 1" in errors
 
 
+class FakeText:
+    def __init__(self, text: str):
+        self.text = text
+
+
+def _assistant(*blocks):
+    """An AssistantMessage double carrying arbitrary content blocks."""
+    a = FakeAssistant()
+    a.content = list(blocks)
+    return a
+
+
+def _query_yields_then_fails(*messages, exc):
+    async def _q(*, prompt, options):  # noqa: ARG001
+        for m in messages:
+            yield m
+        raise exc
+
+    return _q
+
+
+def test_api_error_final_text_replaces_opaque_sdk_error(monkeypatch):
+    """When the CLI aborts on an API error (e.g. a content-filter block) the SDK
+    can only echo the result subtype — the useless word "success". The model's
+    last words carry the real reason; the raised AgentError must surface them,
+    chaining the original so nothing is lost."""
+    _patch(monkeypatch)
+    monkeypatch.setattr(harness, "TextBlock", FakeText)
+    opaque = Exception("Claude Code returned an error result: success")
+    monkeypatch.setattr(
+        harness,
+        "query",
+        _query_yields_then_fails(
+            FakeSystem("s-1"),
+            _assistant(
+                FakeText("API Error: 400 Output blocked by content filtering policy")
+            ),
+            exc=opaque,
+        ),
+    )
+    with pytest.raises(harness.AgentError, match="content filtering policy") as ei:
+        harness.run_agent("t-1", "m-1", None)
+    assert ei.value.__cause__ is opaque
+
+
+def test_non_api_final_text_leaves_the_original_error_intact(monkeypatch):
+    """Only an "API Error" final message is worth substituting. Any other last
+    words are ordinary output; the real exception must propagate unchanged."""
+    _patch(monkeypatch)
+    monkeypatch.setattr(harness, "TextBlock", FakeText)
+    boom = RuntimeError("transport crashed mid-stream")
+    monkeypatch.setattr(
+        harness,
+        "query",
+        _query_yields_then_fails(
+            FakeSystem("s-1"),
+            _assistant(FakeText("Working on it, one moment.")),
+            exc=boom,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="transport crashed mid-stream"):
+        harness.run_agent("t-1", "m-1", None)
+
+
 def test_no_stderr_tail_logged_on_a_clean_run(monkeypatch, caplog):
     """A healthy run must not emit the ERROR tail — no crying wolf."""
     _patch(
