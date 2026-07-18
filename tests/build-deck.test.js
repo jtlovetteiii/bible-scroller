@@ -290,11 +290,18 @@ test('font_size on a segment overrides the fitter', () => {
 // slide, "the build refuses" is the only thing standing between a placeholder
 // and the sanctuary wall. Each must name the offending segment.
 
+// Songs shaped for these tests specifically. They used to reuse real library
+// files, which meant editing a hymn could break a renderer test for reasons that
+// had nothing to do with the renderer — and did, when his-name-is-jesus.md lost
+// its placeholder section (bs-b8d). The library is the church's data; fixtures
+// are ours.
+const FIXTURE_SONGS = path.join(__dirname, 'fixtures', 'songs');
+
 /** Build a one-segment deck, asserting it fails, and hand back the error. */
-function buildErrorFor(segments) {
+function buildErrorFor(segments, options = {}) {
   const deck = { date: '2026-06-28', segments };
   try {
-    build(deck, '<test>');
+    build(deck, '<test>', options);
   } catch (e) {
     assert.ok(e instanceof DeckError, `expected a DeckError, got ${e}`);
     return e;
@@ -303,10 +310,13 @@ function buildErrorFor(segments) {
 }
 
 test('projecting placeholder text is a build error', () => {
-  // his-name-is-jesus.md carries a stub section: "(paste lyrics here — song
-  // identity unconfirmed)". Putting that on the sanctuary wall is the worst
-  // outcome this project has, so asking for it by name must fail the build.
-  const err = buildErrorFor([{ type: 'song', song: 'his-name-is-jesus', sections: ['Verse 1'] }]);
+  // stub-song.md carries a section whose only content is a placeholder. Putting
+  // that on the sanctuary wall is the worst outcome this project has, so asking
+  // for it by name must fail the build rather than render it.
+  const err = buildErrorFor(
+    [{ type: 'song', song: 'stub-song', sections: ['Verse 1'] }],
+    { songsDir: FIXTURE_SONGS }
+  );
   assert.match(err.message, /segment 1/, 'names the offending segment');
   assert.match(err.message, /placeholder/i, 'says why');
 });
@@ -318,13 +328,14 @@ test('a song with no lyrics at all degrades to a title slide + a missing line', 
   // builds, so one unresolved song cannot cost the operator his whole service —
   // it just comes back as a question in the report instead of a blocking prompt.
   const { report } = build(
-    { date: '2026-06-28', segments: [{ type: 'song', song: 'his-name-is-jesus' }] },
-    '<test>'
+    { date: '2026-06-28', segments: [{ type: 'song', song: 'empty-song' }] },
+    '<test>',
+    { songsDir: FIXTURE_SONGS }
   );
 
   assert.equal(report.slides, 1, 'the title slide, and no lyric slides');
   const [gap] = report.missing;
-  assert.equal(gap.song, 'his-name-is-jesus');
+  assert.equal(gap.song, 'empty-song');
   assert.match(gap.need, /lyrics/i, 'the report asks for what it needs');
 });
 

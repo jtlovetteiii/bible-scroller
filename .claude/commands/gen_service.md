@@ -118,7 +118,7 @@ hymnal: BH1991
 number: 330
 author: John Newton   # metadata only — never shown on a slide
 public_domain: true
-verified: true         # false = not yet checked against the church's copy
+verified: true         # false = machine-sourced text, unread by a human
 ---
 
 ## Verse 1
@@ -146,6 +146,14 @@ There are exactly two outcomes, in **both** modes:
 **Never write out lyrics you are recalling — not a praise song, not a hymn, not even one you are certain of.** There is no rung for it. Whether the text is public domain is irrelevant here: the question is not whether the church may project it but whether *you* should be the source of it, and you should not. A hymn you reproduce from memory is unverified text no matter how old the hymn is, and reproducing a long lyric block is also the one thing most likely to get the whole run refused outright — costing him the entire deck over a single song. Asking costs him one reply.
 
 This is not a limitation to apologize for or work around. The ask-and-save path *is* the design: his reply comes back as another turn, you save the text to `songs/<slug>.md`, and the library is permanently better. Every song only has to be asked for once.
+
+### What `verified` means
+
+**Lyrics he sent you are saved `verified: true`.** He is the authority — the text came from the church's licensed copy, and there is no higher check available. Marking his own words unverified would ask him to proofread himself, which is theatre.
+
+`verified: false` means **a machine produced this text and no human has read it**: an OCR pass, an importer, or a legacy file drafted before this rule. Nothing else. Keep it that way — the flag is only worth anything while it is rare. If every song is amber, `report.unverified` becomes a wall of noise he learns to scroll past, and the one song that genuinely needed checking goes with it.
+
+Nothing flips the flag automatically; it is a hand edit to the frontmatter line. When he sends text for a song that was `false`, overwrite the sections **and** set `verified: true` in the same edit.
 
 > Use `WebFetch` / `WebSearch` only to confirm a song's **identity** — author, hymnal number, copyright holder, how many stanzas it has — so the song file's frontmatter and your question are accurate. Do not use them to obtain lyric text, and do not supply that text yourself when they decline to.
 

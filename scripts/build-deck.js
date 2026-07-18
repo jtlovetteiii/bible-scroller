@@ -101,8 +101,8 @@ class DeckError extends Error {}
  * Parse songs/<slug>.md: YAML-ish frontmatter (flat key: value) + `## Section`
  * headings. HTML comments and blank padding are ignored.
  */
-function parseSong(slug) {
-  const file = path.join(SONGS_DIR, `${slug}.md`);
+function parseSong(slug, songsDir = SONGS_DIR) {
+  const file = path.join(songsDir, `${slug}.md`);
   if (!fs.existsSync(file)) return null;
   const raw = fs.readFileSync(file, 'utf8');
 
@@ -325,7 +325,7 @@ function partition(lines, k, size) {
 
 // ── Validation ──────────────────────────────────────────────────────────────
 
-function validate(deck, deckPath) {
+function validate(deck, deckPath, songsDir = SONGS_DIR) {
   const errors = [];
   const err = (msg) => errors.push(msg);
   const where = (i, seg) => `segment ${i + 1} (${(seg && seg.type) || 'no type'})`;
@@ -351,11 +351,11 @@ function validate(deck, deckPath) {
 
   const songs = new Map(); // slug -> parsed song (or null if missing)
   const loadSong = (slug) => {
-    if (!songs.has(slug)) songs.set(slug, parseSong(slug));
+    if (!songs.has(slug)) songs.set(slug, parseSong(slug, songsDir));
     return songs.get(slug);
   };
   const availableSlugs = () =>
-    fs.readdirSync(SONGS_DIR).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+    fs.readdirSync(songsDir).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
 
   deck.segments.forEach((seg, i) => {
     if (seg === null || typeof seg !== 'object' || Array.isArray(seg)) {
@@ -468,7 +468,11 @@ function format(errors, deckPath) {
 const DEFAULT_ASSET_BASE = '/templates/service';
 
 function build(deck, deckPath, options = {}) {
-  const songs = validate(deck, deckPath);
+  // `songsDir` exists for tests: a cardinal-rule test needs a song file shaped a
+  // particular way (a placeholder section, say), and reaching into the real
+  // songs/ for that couples the renderer's tests to the church's actual library
+  // — editing a hymn then breaks an unrelated build test. Production never sets it.
+  const songs = validate(deck, deckPath, options.songsDir ?? SONGS_DIR);
 
   // Trailing slashes are stripped so `${assetBase}/${file}` is always clean. The
   // default reproduces the historical `/templates/service/<file>` byte-for-byte.
