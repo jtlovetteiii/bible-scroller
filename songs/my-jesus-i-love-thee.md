@@ -6,8 +6,29 @@ hymnal:
 number:
 author: William R. Featherston (c. 1862–1864); tune GORDON by Adoniram J. Gordon
 public_domain: true
-verified: false
+verified: true
 ---
-<!-- IDENTIFY & VERIFY: public-domain text, but we don't have this church's
-     verse selection/wording yet. Paste the licensed lyrics here as ##
-     sections before removing title_only from the deck. -->
+
+## Verse 1
+My Jesus, I love thee, I know thou art mine;
+for thee all the follies of sin I resign;
+my gracious Redeemer, my Savior art thou;
+if ever I loved thee, my Jesus, 'tis now.
+
+## Verse 2
+I love thee because thou hast first loved me
+and purchased my pardon on Calvary's tree;
+I love thee for wearing the thorns | on thy brow;
+if ever I loved thee, my Jesus, 'tis now.
+
+## Verse 3
+I'll love thee in life, I will love thee in death,
+and praise thee as long as thou lendest | me breath,
+and say when the deathdew lies cold | on my brow:
+If ever I loved thee, my Jesus, 'tis now.
+
+## Verse 4
+In mansions of glory and endless delight,
+I'll ever adore thee in heaven so bright;
+I'll sing with the glittering crown on my brow:
+If ever I loved thee, my Jesus, 'tis now.
