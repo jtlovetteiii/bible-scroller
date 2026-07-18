@@ -82,9 +82,13 @@ class EvalRun:
 
         These are not the same thing and must not be diagnosed as if they were. The
         one we actually hit is `400 Output blocked by content filtering policy` — an
-        agent whose job is reproducing hymn lyrics verbatim will sometimes have its
-        output refused (see bs-a1f). Surface it, don't let it masquerade as a
-        reasoning failure.
+        agent that writes lyrics out verbatim will sometimes have its output refused
+        (see bs-a1f). Surface it, don't let it masquerade as a reasoning failure.
+
+        bs-1mf removed the reason this happened: lyric text now reaches a slide only
+        from `songs/*.md`, so the model emits slugs, not words. Which makes this error
+        diagnostic rather than expected — if it fires again, the first thing to check
+        is whether the model went back to supplying lyrics itself.
         """
         for text in self.transcript:
             if "API Error" in text or "content filtering" in text:

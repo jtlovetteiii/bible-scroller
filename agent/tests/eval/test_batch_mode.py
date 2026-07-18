@@ -118,25 +118,34 @@ async def test_0712_asks_for_the_lyrics_it_could_not_find(run_0712):
     )
 
 
-async def test_0712_reuses_the_library_and_flags_what_it_looked_up(run_0712):
-    """Library first (bs-8yd); anything looked up is flagged for a human to check."""
+async def test_0712_reuses_the_library_and_asks_for_everything_else(run_0712):
+    """Library first; anything not in it is asked for, never recalled (bs-8yd, bs-1mf)."""
     report = run_0712.report(SERVICE_DATE_0712)
     songs = {s["slug"] for s in report["songs"]}
 
     assert "o-for-a-thousand-tongues-to-sing" in songs, "the library copy should be reused"
 
     # "Tell Me the Story of Jesus" is a public-domain hymn the agent had never seen.
-    # It should have looked it up and saved it rather than asking for it...
+    # bs-8yd let it look one up and save it verified:false. bs-1mf removed that rung:
+    # public domain settles whether the CHURCH may project the hymn, not whether the
+    # MODEL should be the source of its words. Text it recalled is unverified however
+    # old the hymn is, nobody reads it before Sunday in batch mode, and emitting a long
+    # lyric block risks a refusal that costs the whole deck over one song. So it asks.
     story = run_0712.find_music(SERVICE_DATE_0712, "story of jesus")
-    assert not story.get("title_only"), "a public-domain hymn is lookupable — don't ask for it"
+    assert story.get("title_only"), (
+        f"{story['song']!r} is not in songs/ — the agent should have emitted a "
+        f"title-only slide and asked for the lyrics, not supplied them itself"
+    )
 
-    # ...and flagged it, because nobody has read those lyrics. The amber flag and
-    # the `unverified` line ARE the "please check these slides" message. Saving it
-    # as verified:true would ship unchecked lyrics with nothing to mark them.
-    looked_up = {u["song"] for u in report["unverified"]}
-    assert story["song"] in looked_up, (
-        f"the agent looked up {story['song']!r} but marked it verified — nobody has "
-        f"read those lyrics. unverified was: {sorted(looked_up)}"
+    # Asking is only half of it: the deck still has to be worth having. Missing lyrics
+    # are non-blocking, so the build must succeed and the request must reach him.
+    needed = {m.get("song", "").lower() for m in report["missing"]}
+    assert any("story of jesus" in s for s in needed), (
+        f"the hymn was left title-only but never reported under `missing`, so nobody "
+        f"is ever asked for it: {sorted(needed)}"
+    )
+    assert "story of jesus" in run_0712.reply.lower(), (
+        f"the reply never asks for the lyrics it is missing:\n\n{run_0712.reply}"
     )
 
 

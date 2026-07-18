@@ -118,7 +118,7 @@ hymnal: BH1991
 number: 330
 author: John Newton   # metadata only — never shown on a slide
 public_domain: true
-verified: true         # false = drafted from memory, must be human-checked
+verified: true         # false = not yet checked against the church's copy
 ---
 
 ## Verse 1
@@ -138,12 +138,16 @@ Casting down their golden crowns | around the glassy sea;
 
 ### Resolving a song
 
-1. **In the library** → reference it by slug.
-2. **Not in the library, public-domain hymn** (clearly PD) → write the lyrics from its hymnary.org page, save the file with `public_domain: true`, then reference it. `verified: true` in interactive mode — the operator is right there and will see the slides. **In batch mode, `verified: false`**: nobody has laid eyes on those lyrics, and the amber flag plus the `unverified` report line *is* how you tell him which slides to check before Sunday.
-3. **Not in the library, copyrighted** (modern hymn or praise song) → draft the best-known lyrics, save with `verified: false` and a `<!-- VERIFY … -->` comment. Slides are still generated (drafted lyrics are showable), but flagged. **Interactive mode only** — in batch mode there is no one to check them, so skip to 4.
-4. **Not in the library and you don't actually know the lyrics** → do **not** invent them. Create the song file with frontmatter and no sections, use `"title_only": true`, and tell the user you need the lyrics. The script refuses to project placeholder text, so a stub section (`(paste lyrics here…)`) is a build error, not a slide.
+There are exactly two outcomes, in **both** modes:
 
-> `WebFetch`'s summarizer refuses to reproduce lyric text on copyright grounds, so you cannot rely on it to *return* lyrics. Use it / `WebSearch` only to confirm a song's identity, author, hymnal number, and stanza structure — then supply the text yourself.
+1. **In the library** → reference it by slug.
+2. **Not in the library** → create the song file with frontmatter and **no sections**, set `"title_only": true` on the segment, and ask for the lyrics. The script refuses to project placeholder text, so a stub section (`(paste lyrics here…)`) is a build error, not a slide.
+
+**Never write out lyrics you are recalling — not a praise song, not a hymn, not even one you are certain of.** There is no rung for it. Whether the text is public domain is irrelevant here: the question is not whether the church may project it but whether *you* should be the source of it, and you should not. A hymn you reproduce from memory is unverified text no matter how old the hymn is, and reproducing a long lyric block is also the one thing most likely to get the whole run refused outright — costing him the entire deck over a single song. Asking costs him one reply.
+
+This is not a limitation to apologize for or work around. The ask-and-save path *is* the design: his reply comes back as another turn, you save the text to `songs/<slug>.md`, and the library is permanently better. Every song only has to be asked for once.
+
+> Use `WebFetch` / `WebSearch` only to confirm a song's **identity** — author, hymnal number, copyright holder, how many stanzas it has — so the song file's frontmatter and your question are accurate. Do not use them to obtain lyric text, and do not supply that text yourself when they decline to.
 
 ### Verse selection
 
@@ -207,7 +211,9 @@ If a run has both kinds, blocking wins: hold the deck.
 
 ### Lyrics you don't have
 
-The [Resolving a song](#resolving-a-song) ladder applies, with one rung removed: **in batch mode, never draft lyrics from memory.** There is no one to catch you. Library first; then look up a public-domain hymn and save it — **always `verified: false`** in batch mode, because no human has read those lyrics yet, and the amber flag plus the `unverified` report line *is* the "I looked these up, please check them" message he needs. Anything you can neither find nor look up: `title_only`, and ask him for the text.
+The [Resolving a song](#resolving-a-song) ladder applies unchanged — it is already the same in both modes. Library, or `title_only` and ask him for the text.
+
+Batch mode is where the reasoning behind it bites hardest: there is no one to catch you, so a lyric you recalled slightly wrong goes on the sanctuary wall on Sunday with nobody having read it first. Missing lyrics are explicitly **non-blocking** (see above) — build the deck, send the link, and ask for the text in the same reply. One unresolved song must never cost him the whole deck, and a `title_only` slide he can see is worth far more than a verse you weren't sure of.
 
 ### The deck is a living artifact
 
@@ -246,4 +252,4 @@ The report is the summary — don't re-derive it. `report.missing` is what to as
 
 - Use an en dash (–) not a hyphen in ranges.
 - Preserve archaic hymn spellings ("'Tis", "wert"); never alter wording.
-- Save any new songs you resolve to `songs/` so the library grows.
+- When lyrics arrive in a reply, save them to `songs/<slug>.md` — that is the only way the library grows, and it is how a song stops needing to be asked about.

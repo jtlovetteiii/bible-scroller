@@ -216,9 +216,23 @@ handled differently:**
   unresolved song must never cost the operator his whole deck.
 
 Report fields the agent acts on: `missing` (ask for these), `unverified` (flag
-for checking — looked-up lyrics land here), `splits`, `typography` (§5.1),
-`warnings`. Supporting pieces: `bs-c16` moved rendering into a deterministic
-JSON→HTML build; `bs-8yd` forbids drafting lyrics from memory in batch mode.
+for checking), `splits`, `typography` (§5.1), `warnings`. Supporting pieces:
+`bs-c16` moved rendering into a deterministic JSON→HTML build; `bs-8yd` then
+`bs-1mf` removed lyric drafting entirely — **lyric text reaches a slide only by
+way of `songs/*.md`, never from the model.** A song not in the library is
+`title_only` plus a request for the text, in both modes.
+
+That last rule is narrower than it sounds and worth understanding rather than
+merely obeying. It is not a copyright judgment — the church's CCLI licence, not
+this pipeline, settles what may be projected. It is that the model is the wrong
+*source*: text it recalls is unverified regardless of the work's age, nobody
+reads it before Sunday in batch mode, and a long verbatim lyric block is the
+output most likely to be refused outright, which costs the operator the entire
+deck over one song. Asking costs him one reply, and the answer is durable.
+
+It is also self-limiting rather than a scaling risk: the deck JSON carries no
+lyric text at all, so once a song is in the library the model never handles its
+words. The exposure is the cold-start path, and it shrinks every week.
 
 ### 5.1 The determinism funnel
 
