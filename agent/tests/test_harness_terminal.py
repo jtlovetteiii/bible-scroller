@@ -14,6 +14,9 @@ request forever.
 
 from __future__ import annotations
 
+import collections
+import logging
+
 import pytest
 
 from email_agent import harness
@@ -90,3 +93,69 @@ def test_deciding_nothing_is_still_a_failure(monkeypatch):
     )
     with pytest.raises(harness.AgentError, match="silently dropped"):
         harness.run_agent("t-1", "m-1", None)
+
+
+# ---------------------------------------------------------------------------
+# bs-zwj: the bundled CLI's stderr must reach our logs, not vanish. The failure
+# that prompted this ("error result: success") was opaque only because we never
+# asked the SDK to pipe stderr.
+# ---------------------------------------------------------------------------
+
+
+def test_stderr_capture_records_lines_and_skips_blanks(caplog):
+    sink: collections.deque[str] = collections.deque(maxlen=10)
+    capture = harness._stderr_capture("t-9", "m-9", sink)
+    with caplog.at_level(logging.DEBUG, logger="email_agent.harness"):
+        capture("node: real error\n")
+        capture("\n")   # a bare newline is not signal — dropped
+        capture("")     # nor an empty chunk
+        capture("  stack frame")
+
+    assert list(sink) == ["node: real error", "  stack frame"]  # leading indent kept
+    assert any("node: real error" in r.message for r in caplog.records)
+
+
+def _query_that_stderrs_then_fails(*lines, exc):
+    """A fake query that delivers CLI stderr the way the real transport does —
+    via options.stderr — and then dies, so the tail-on-failure path is exercised."""
+
+    async def _q(*, prompt, options):  # noqa: ARG001
+        for line in lines:
+            options.stderr(line)
+        raise exc
+        yield  # unreachable; makes this an async generator
+
+    return _q
+
+
+def test_cli_stderr_tail_is_logged_when_a_run_fails(monkeypatch, caplog):
+    _patch(monkeypatch)  # benign query + auth/isinstance doubles
+    boom = Exception("Claude Code returned an error result: success")
+    monkeypatch.setattr(
+        harness,
+        "query",
+        _query_that_stderrs_then_fails(
+            "node:internal/errors real cause here", "  at frame 1", exc=boom
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR, logger="email_agent.harness"):
+        with pytest.raises(Exception, match="error result: success"):
+            harness.run_agent("t-1", "m-1", None)
+
+    errors = "\n".join(r.message for r in caplog.records if r.levelno >= logging.ERROR)
+    assert "node:internal/errors real cause here" in errors
+    assert "at frame 1" in errors
+
+
+def test_no_stderr_tail_logged_on_a_clean_run(monkeypatch, caplog):
+    """A healthy run must not emit the ERROR tail — no crying wolf."""
+    _patch(
+        monkeypatch,
+        FakeSystem("s-1"),
+        FakeAssistant(harness.SEND_REPLY_TOOL),
+        FakeResult(),
+    )
+    with caplog.at_level(logging.ERROR, logger="email_agent.harness"):
+        assert harness.run_agent("t-1", "m-1", None) == "s-1"
+    assert not [r for r in caplog.records if "stderr tail" in r.message]

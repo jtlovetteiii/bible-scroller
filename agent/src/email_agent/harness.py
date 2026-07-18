@@ -12,7 +12,9 @@ file (spec §1, §4.4).
 from __future__ import annotations
 
 import anyio
+import collections
 import logging
+from collections.abc import Callable
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -98,8 +100,40 @@ class AgentError(RuntimeError):
     """Raised on any failure. The dispatcher turns this into `failed` + released claim."""
 
 
+#: How many trailing lines of the bundled CLI's stderr to keep. The CLI's own
+#: error text lands there, not in our exceptions: when it exits non-zero with an
+#: empty error body the SDK can only report the result subtype — on the
+#: deployment host that surfaced as the literal, useless word "success". A tail
+#: is enough (the real message is at the end) and bounds memory on a chatty run.
+STDERR_TAIL_LINES = 50
+
+
+def _stderr_capture(
+    thread_id: str, msg_id: str, sink: collections.deque[str]
+) -> Callable[[str], None]:
+    """Build the ``ClaudeAgentOptions.stderr`` callback for one run.
+
+    The SDK pipes the CLI's stderr only when this callback is set
+    (``subprocess_cli.py``); otherwise the child inherits our stderr and — as
+    seen on the homelab box, where the journal caught nothing — the real error
+    can vanish. Capture each line into ``sink`` for a tail dumped iff the run
+    fails, and mirror it to DEBUG so a healthy run stays quiet.
+    """
+
+    def capture(line: str) -> None:
+        line = line.rstrip("\n")
+        if not line:
+            return
+        sink.append(line)
+        logger.debug("claude-cli stderr [thread %s msg %s]: %s", thread_id, msg_id, line)
+
+    return capture
+
+
 async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | None:
     assert_subscription_auth()
+
+    cli_stderr: collections.deque[str] = collections.deque(maxlen=STDERR_TAIL_LINES)
 
     options = ClaudeAgentOptions(
         model=config.agent_model,
@@ -117,6 +151,10 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
         ],
         permission_mode="bypassPermissions",  # headless: nobody can approve a prompt
         resume=session_id,
+        # Without this the CLI's stderr is not piped to us at all — the failure
+        # that prompted this (bs-zwj) was opaque precisely because we never asked
+        # for it.
+        stderr=_stderr_capture(thread_id, msg_id, cli_stderr),
     )
 
     prompt = (
@@ -132,21 +170,34 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
     terminal: set[str] = set()
     result: ResultMessage | None = None
 
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, SystemMessage):
-            sid = (message.data or {}).get("session_id")
-            if sid:
-                new_session_id = sid
-        elif isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, ToolUseBlock) and block.name in TERMINAL_TOOLS:
-                    terminal.add(block.name)
-        elif isinstance(message, ResultMessage):
-            result = message
-            new_session_id = new_session_id or getattr(message, "session_id", None)
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, SystemMessage):
+                sid = (message.data or {}).get("session_id")
+                if sid:
+                    new_session_id = sid
+            elif isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, ToolUseBlock) and block.name in TERMINAL_TOOLS:
+                        terminal.add(block.name)
+            elif isinstance(message, ResultMessage):
+                result = message
+                new_session_id = new_session_id or getattr(message, "session_id", None)
 
-    if result is not None and getattr(result, "is_error", False):
-        raise AgentError(f"agent run errored: {getattr(result, 'result', result)!r}")
+        if result is not None and getattr(result, "is_error", False):
+            raise AgentError(f"agent run errored: {getattr(result, 'result', result)!r}")
+    except BaseException:
+        # BaseException, not Exception: a timeout cancels this scope with
+        # CancelledError, and the CLI's dying words are exactly what you want
+        # when a run wedged. We only log and re-raise — the dispatcher still owns
+        # the failure. Logged here, next to the cause, rather than left for the
+        # operator to reconstruct from journal timestamps.
+        if cli_stderr:
+            logger.error(
+                "claude-cli stderr tail for thread %s msg %s (%d line[s]):\n%s",
+                thread_id, msg_id, len(cli_stderr), "\n".join(cli_stderr),
+            )
+        raise
 
     # A run must end in a deliberate terminal action: it either replied, or it
     # decided a reply was not warranted. Deciding NOT to reply is a legitimate
