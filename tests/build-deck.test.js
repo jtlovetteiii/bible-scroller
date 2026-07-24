@@ -77,13 +77,24 @@ test('reference deck report carries the facts the skill reports back', () => {
     'and it comes before the invitation + closing prayer, not at the very end'
   );
 
-  // Every song in the library that is unverified must be named, so the skill
-  // can hand the operator a list of what to check before Sunday.
+  // Every song whose LYRICS are unverified must be named, so the skill can hand
+  // the operator a list of what to check before Sunday. Title-only songs are
+  // deliberately absent: they projected no text, so there is nothing to check,
+  // and `missing` already asks for their words. Listing them in both would
+  // double-count every unresolved song and bury the ones that can be acted on.
   assert.deepEqual(
     report.unverified.map((u) => u.song).sort(),
-    ['his-name-is-jesus', 'o-what-a-savior', 'waymaker', 'worthy-of-worship'],
-    'unverified songs are surfaced by slug'
+    ['waymaker', 'worthy-of-worship'],
+    'unverified names songs with projected lyrics, not title-only ones'
   );
+  const titleOnly = report.songs.filter((s) => !s.sections.length).map((s) => s.slug);
+  assert.ok(titleOnly.length, 'the reference deck still exercises the title-only path');
+  for (const slug of titleOnly) {
+    assert.ok(
+      !report.unverified.some((u) => u.song === slug),
+      `${slug} projected no lyrics, so it must not be reported as unverified`
+    );
+  }
 
   // The report surfaces both kinds of gap batch mode has to act on, and they
   // get different treatment (see gen_service's non-interactive contract):
@@ -107,8 +118,10 @@ test('reference deck report carries the facts the skill reports back', () => {
 
 test('--asset-base re-roots background URLs; default is unchanged', () => {
   const deck = readDeck(REFERENCE_DECK);
-  // Tolerant of any extra attributes (crossorigin) between class and src.
-  const srcs = (html) => [...html.matchAll(/<img class="bg"[^>]* src="([^"]*)"/g)].map((m) => m[1]);
+  // Backgrounds are painted as a div's background-image, so the URL lives inside
+  // url('…') in the style attribute rather than an <img src>.
+  const srcs = (html) =>
+    [...html.matchAll(/<div class="bg" style="background-image: url\('([^']*)'\)"/g)].map((m) => m[1]);
 
   // Default: bare absolute paths served by Express, as before.
   const def = srcs(build(deck, REFERENCE_DECK).html);
@@ -132,39 +145,38 @@ test('--asset-base re-roots background URLs; default is unchanged', () => {
   assert.deepEqual(slashed, hosted, 'a trailing slash on the base is normalized away');
 });
 
-// ── Cross-origin export (bs-517) ─────────────────────────────────────────────
+// ── Backgrounds fill the frame on export (bs-kyp, supersedes bs-517) ──────────
 //
-// html2canvas rasterizes the background <img> into each exported JPEG. When the
-// image is cross-origin (a hosted deck), the element must carry
-// crossorigin="anonymous" or the browser never sends Origin, S3's CORS headers
-// go unused, the canvas is tainted, and canvas.toBlob() throws. Same-origin (the
-// default relative base) must NOT get the attribute — that keeps the golden
-// byte-identical and adds nothing the same-origin path needs.
+// The background is a div with a background-image, NEVER an <img>. html2canvas
+// (the exporter) ignores object-fit, so an <img class="bg"> letterboxed every
+// non-16:9 background with white margins in the exported JPEG. A div's
+// background-size: cover it honors, so the art fills the frame. CORS for the
+// hosted case now rides on html2canvas's useCORS:true (set in the template),
+// which re-fetches each background with crossOrigin="anonymous" — so no deck
+// carries a per-element crossorigin attribute anymore.
 
-test('crossorigin is emitted only when the asset base is cross-origin', () => {
+test('every background is a cover-filled div, never an <img> that would letterbox', () => {
   const deck = readDeck(REFERENCE_DECK);
-  const bgImgs = (html) => [...html.matchAll(/<img class="bg"[^>]*>/g)].map((m) => m[0]);
 
-  // Default (relative) and an explicitly relative base: no crossorigin.
-  for (const opts of [undefined, { assetBase: '/some/other/path' }]) {
-    const imgs = bgImgs(build(deck, REFERENCE_DECK, opts).html);
-    assert.ok(imgs.length > 0);
-    assert.ok(
-      imgs.every((t) => !t.includes('crossorigin')),
-      `same-origin base must not emit crossorigin (opts=${JSON.stringify(opts)})`
-    );
-  }
-
-  // Absolute bases (https, http, protocol-relative): every bg img opts into CORS.
   for (const base of [
-    'https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com/templates/service',
-    'http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com/templates/service',
-    '//cdn.example.com/templates/service',
+    undefined,
+    { assetBase: '/some/other/path' },
+    { assetBase: 'https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com/templates/service' },
   ]) {
-    const imgs = bgImgs(build(deck, REFERENCE_DECK, { assetBase: base }).html);
+    const { html } = build(deck, REFERENCE_DECK, base);
+    const divs = [...html.matchAll(/<div class="bg"[^>]*>/g)].map((m) => m[0]);
+    assert.ok(divs.length > 0, `the reference deck has backgrounds (base=${JSON.stringify(base)})`);
     assert.ok(
-      imgs.every((t) => t.includes('<img class="bg" crossorigin="anonymous" src="')),
-      `cross-origin base ${base} must emit crossorigin="anonymous"`
+      !/<img class="bg"/.test(html),
+      'no background is an <img> — html2canvas would ignore object-fit and letterbox it'
+    );
+    assert.ok(
+      divs.every((d) => d.includes("style=\"background-image: url('")),
+      'every background div paints its image via background-image (CSS supplies background-size: cover)'
+    );
+    assert.ok(
+      divs.every((d) => !d.includes('crossorigin')),
+      'no per-element crossorigin — the hosted export relies on html2canvas useCORS instead'
     );
   }
 });
@@ -182,7 +194,7 @@ test('no lyric line ever wraps — every painted line fits its slide', () => {
   for (const [, style, body] of html.matchAll(
     /<div class="lyric"(?:\s+style="font-size:\s*(\d+)px")?>\s*([\s\S]*?)\s*<\/div>/g
   )) {
-    const size = Number(style ?? 60);
+    const size = Number(style ?? 75);
     for (const line of body.split('<br>').map((l) => l.trim())) {
       assert.ok(
         textWidth(line, size) <= CONTENT_W,
@@ -194,18 +206,22 @@ test('no lyric line ever wraps — every painted line fits its slide', () => {
 });
 
 test('a marked caesura breaks the line and keeps the song at full size', () => {
-  // The preferred fix. "Casting down their golden crowns around the glassy sea;"
-  // is 1480px at 60px in a 1196px box. Shrinking to fit it would drag ALL of
-  // Holy, Holy, Holy down to 48px — 20% smaller, for one line. Breaking it at the
-  // caesura marked in the song file costs one line and nothing else.
-  const { report, html } = build(readDeck(REFERENCE_DECK), REFERENCE_DECK);
+  // The preferred fix. In caesura-full.md every line fits at 75px except
+  // "Casting down their golden crowns | around the glassy sea;" — too wide whole,
+  // but each half fits. Shrinking to fit it would drag the WHOLE song down;
+  // breaking it at its marked caesura costs one line and keeps full size.
+  const { report, html } = build(
+    { date: '2026-06-28', segments: [{ type: 'song', song: 'caesura-full', sections: ['Verse 1'] }] },
+    '<test>',
+    { songsDir: FIXTURE_SONGS }
+  );
 
-  const holy = report.typography.find((t) => t.song.startsWith('Holy'));
-  assert.equal(holy.kind, 'caesura');
-  assert.equal(holy.size, 60, 'the hymn stays at full size');
+  const [caes] = report.typography;
+  assert.equal(caes.kind, 'caesura');
+  assert.equal(caes.size, 75, 'the song stays at full size');
 
-  const verse2 = html.match(/Slide 9 —[\s\S]*?<div class="lyric"[^>]*>([\s\S]*?)<\/div>/)[1];
-  const painted = verse2.split('<br>').map((l) => l.trim());
+  const lyric = html.match(/<div class="lyric"[^>]*>([\s\S]*?)<\/div>/)[1];
+  const painted = lyric.split('<br>').map((l) => l.trim());
   assert.ok(
     painted.includes('Casting down their golden crowns') &&
       painted.includes('around the glassy sea;'),
@@ -221,7 +237,7 @@ test('an unmarked over-wide line shrinks the song AND names the line to mark', (
   fs.writeFileSync(
     stub,
     '---\ntitle: Unmarked\ntype: hymn\nverified: true\n---\n\n' +
-      '## Verse 1\nCasting down their golden crowns around the glassy sea;\nShort line.\n'
+      '## Verse 1\nHere I raise my Ebenezer; hither by Thy help\nShort line.\n'
   );
 
   try {
@@ -231,8 +247,8 @@ test('an unmarked over-wide line shrinks the song AND names the line to mark', (
     );
     const [t] = report.typography;
     assert.equal(t.kind, 'shrunk');
-    assert.equal(t.size, 48, 'shrunk to fit the unmarked line');
-    assert.deepEqual(t.unmarked, ['Casting down their golden crowns around the glassy sea;']);
+    assert.equal(t.size, 60, 'shrunk to the floor to fit the unmarked line');
+    assert.deepEqual(t.unmarked, ['Here I raise my Ebenezer; hither by Thy help']);
     assert.match(t.fix, /caesura/, 'and it says how to get back to full size');
   } finally {
     fs.rmSync(stub, { force: true });
@@ -260,14 +276,16 @@ test('a line that fits at no size and cannot be broken is a loud warning', () =>
 });
 
 test('the whole of Holy, Holy, Holy is projectable — verse 4 included', () => {
-  // Verse 4's longest line needs 43px, BELOW the 48px floor. Before the caesura
-  // mechanism, projecting the complete hymn was simply impossible without a wrap.
+  // At 75px its unmarked lines are too wide, so the hymn shrinks to the 60px
+  // floor — the old proven size — where every line either fits or breaks at its
+  // marked caesura. The point: the complete hymn projects with no wrap, and the
+  // congregation never sees a stranded word.
   const { report } = build(
     { date: '2026-06-28', segments: [{ type: 'song', song: 'holy-holy-holy' }] },
     '<test>'
   );
   assert.equal(report.warnings.length, 0, 'no line wraps');
-  assert.equal(report.typography[0].size, 60, 'and it is still at full size');
+  assert.equal(report.typography[0].size, 60, 'it settles at the 60px floor');
 });
 
 test('font_size on a segment overrides the fitter', () => {

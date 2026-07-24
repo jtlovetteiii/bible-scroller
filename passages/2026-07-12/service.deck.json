@@ -1,0 +1,47 @@
+{
+  "date": "2026-07-12",
+  "notes": "Batch-mode build from minister of music's 7/12 flowchart email. Season assumed summer (Jul). Non-library songs (Tell Me the Story of Jesus, Forever Yahweh, Jesus, Before the Throne of God Above) are title_only pending lyrics; see reply for what's needed.",
+  "segments": [
+    { "type": "preshow" },
+    {
+      "type": "prelude",
+      "title": "Heaven on My Mind",
+      "performer": "Penelope Moore"
+    },
+    { "type": "welcome" },
+    {
+      "type": "song",
+      "song": "o-for-a-thousand-tongues-to-sing"
+    },
+    {
+      "type": "song",
+      "song": "tell-me-the-story-of-jesus",
+      "title_only": true
+    },
+    {
+      "type": "special_music",
+      "title": "Amazing Love Medley",
+      "performer": "Choir"
+    },
+    {
+      "type": "song",
+      "song": "forever-yahweh",
+      "role": "praise",
+      "title_only": true
+    },
+    {
+      "type": "song",
+      "song": "jesus",
+      "role": "praise",
+      "title_only": true
+    },
+    { "type": "sermon_transition" },
+    {
+      "type": "song",
+      "song": "before-the-throne-of-god-above",
+      "role": "invitation",
+      "title_only": true
+    },
+    { "type": "closing_prayer" }
+  ]
+}

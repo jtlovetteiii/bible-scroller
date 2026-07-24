@@ -36,15 +36,16 @@ const SLIDES_MARKER = '<!-- SLIDES -->';
 // ── Layout constants, grounded in templates/service-slides-template.html ─────
 // .slide                 1456 x 816
 // .lyric-slide .content  padding: 80px 130px  -> 1196 x 656 content box
-// .lyric                 font-size 60px, line-height 1.4
+// .lyric                 font-size 75px, line-height 1.4
 const CONTENT_W = 1196;
 const CONTENT_H = 656;
 const LINE_HEIGHT_RATIO = 1.4;
 
-// Sizes we may drop to so a long line stays whole. 60px is the design size; 48px
-// is the floor the operator set for the back row of the sanctuary. Below that,
-// shrinking is the wrong answer and the slide is reported instead.
-const FONT_LADDER = [60, 58, 56, 54, 52, 50, 48];
+// Sizes we may drop to so a long line stays whole. 75px is the design size and
+// MUST match .lyric-slide .lyric in the template. 60px is the floor — the old
+// proven size, the smallest the back row of the sanctuary should ever see.
+// Below that, shrinking is the wrong answer and the slide is reported instead.
+const FONT_LADDER = [75, 72, 69, 66, 63, 60];
 const FONT_FLOOR = FONT_LADDER[FONT_LADDER.length - 1];
 
 const SEASONS = ['winter', 'spring', 'summer', 'fall'];
@@ -82,10 +83,11 @@ const SEGMENT_KEYS = {
 // ── Small helpers ───────────────────────────────────────────────────────────
 
 // Text-content escaping. Quotes are deliberately left alone: every string we
-// emit lands in element *content*, never in an attribute (the only attribute we
-// write is src, built from a filename validated against templates/service/), and
-// hymn text is full of apostrophes ("'Tis", "heav'nly") that would otherwise
-// turn the HTML source into unreadable &#39; soup.
+// emit lands in element *content*, never in an attribute (the only attributes we
+// write are the background-image url and, at title time, none else — both built
+// from a filename validated against templates/service/), and hymn text is full
+// of apostrophes ("'Tis", "heav'nly") that would otherwise turn the HTML source
+// into unreadable &#39; soup.
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -479,15 +481,15 @@ function build(deck, deckPath, options = {}) {
   const assetBase = String(options.assetBase ?? DEFAULT_ASSET_BASE).replace(/\/+$/, '');
   const bg = (file) => `${assetBase}/${file}`;
 
-  // When the backgrounds load cross-origin — an absolute asset base, i.e. the
-  // hosted case — the <img> must opt into CORS with crossorigin="anonymous", or
-  // html2canvas taints the export canvas and canvas.toBlob() throws a
-  // SecurityError while the slides still look correct. The bucket's CORS headers
-  // (infra/s3.tf) are the other, necessary-but-not-sufficient half. A same-origin
-  // base (the default relative path) needs nothing, so the attribute — and the
-  // default golden — stay untouched.
-  const crossOrigin = /^[a-z][a-z0-9+.-]*:\/\//i.test(assetBase) || assetBase.startsWith('//');
-  const bgAttrs = crossOrigin ? ' crossorigin="anonymous"' : '';
+  // Backgrounds are painted as a div's background-image, NOT an <img>, because
+  // html2canvas 1.4.1 ignores object-fit and letterboxes any non-16:9 background
+  // with white filler on export; background-size: cover it honors, so the image
+  // fills the frame (cropping as needed). For the hosted case, where the art
+  // loads cross-origin, html2canvas's useCORS: true (set in the template's export
+  // call) re-fetches each background with crossOrigin="anonymous", so S3's CORS
+  // headers (infra/s3.tf) keep the export canvas untainted. No per-element
+  // attribute is needed — the div carries none — and the same-origin default
+  // needs nothing at all.
 
   const month = parseInt(deck.date.slice(5, 7), 10);
   const season = deck.season || SEASON_BY_MONTH[month];
@@ -518,7 +520,7 @@ function build(deck, deckPath, options = {}) {
     const labelClass = unverified ? 'slide-label unverified' : 'slide-label';
     const labelText = `Slide ${n} — ${label}${unverified ? ' (VERIFY)' : ''}`;
     const useScrim = scrim != null ? scrim : SCRIM_BACKGROUNDS.has(background);
-    const body = [`  <img class="bg"${bgAttrs} src="${bg(background)}" alt="">`];
+    const body = [`  <div class="bg" style="background-image: url('${bg(background)}')"></div>`];
     if (useScrim) body.push('  <div class="scrim"></div>');
     if (inner) body.push(...inner);
     html.push(`<div class="${labelClass}">${escapeHtml(labelText)}</div>`);
@@ -527,7 +529,7 @@ function build(deck, deckPath, options = {}) {
   };
 
   // `size` is the fitted font size. Only emitted when it differs from the
-  // template's 60px, so an untouched slide stays byte-identical to the CSS default.
+  // template's 75px, so an untouched slide stays byte-identical to the CSS default.
   const lyricSlide = (label, unverified, background, lines, size) => {
     const style = size && size !== FONT_LADDER[0] ? ` style="font-size: ${size}px"` : '';
     return slide({
@@ -828,7 +830,15 @@ function build(deck, deckPath, options = {}) {
     report.warnings.push('More than 99 slides: the template zero-pads export names to 2 digits, so they will not sort correctly.');
   }
   for (const s of report.songs) {
-    if (!s.verified) report.unverified.push({ song: s.slug, title: s.title, slides: s.slides });
+    // `unverified` means "text a machine produced and no human has read — check
+    // these slides". A title-only song projected no lyrics at all, so there is
+    // nothing to read: it belongs in `missing` (asking for the words), and
+    // listing it here too would double-count every unresolved song. That matters
+    // because the flag is only useful while it is rare — a library half-built
+    // would otherwise show a wall of amber beside the list that can be acted on.
+    if (!s.verified && s.sections.length) {
+      report.unverified.push({ song: s.slug, title: s.title, slides: s.slides });
+    }
   }
 
   const template = fs.readFileSync(TEMPLATE, 'utf8');

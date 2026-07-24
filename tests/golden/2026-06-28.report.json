@@ -227,24 +227,10 @@
       ]
     },
     {
-      "song": "o-what-a-savior",
-      "title": "O What a Savior",
-      "slides": [
-        16
-      ]
-    },
-    {
       "song": "waymaker",
       "title": "Way Maker",
       "slides": [
         17
-      ]
-    },
-    {
-      "song": "his-name-is-jesus",
-      "title": "His Name Is Jesus",
-      "slides": [
-        22
       ]
     }
   ],
@@ -300,6 +286,49 @@
       "reason": "5 line(s) too wide for the slide at 60px were broken at the caesura marked in songs/holy-holy-holy.md, keeping the song at full size."
     },
     {
+      "segment": 4,
+      "song": "Holy, Holy, Holy",
+      "slides": [
+        8,
+        9,
+        10
+      ],
+      "size": 60,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 6 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 15px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/holy-holy-holy.md to keep the song at 75px.",
+      "unmarked": [
+        "Holy, holy, holy! Lord God Almighty!",
+        "Holy, holy, holy! merciful and mighty!",
+        "God in three Persons, blessed Trinity!",
+        "Holy, holy, holy! all the saints adore Thee,",
+        "Which wert, and art, and evermore shalt be.",
+        "Only Thou art holy; there is none beside Thee"
+      ]
+    },
+    {
+      "segment": 5,
+      "song": "Worthy of Worship",
+      "slides": [
+        12,
+        13,
+        14,
+        15
+      ],
+      "size": 66,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 6 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 9px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/worthy-of-worship.md to keep the song at 75px.",
+      "unmarked": [
+        "Worthy of all the glad songs we can sing,",
+        "Worthy of all of the off'rings we bring.",
+        "You are worthy, worthy and wonderful;",
+        "Worthy of bowing and bending of knees,",
+        "Worthy of all this and added to these.",
+        "You are worthy, worthy and wonderful;"
+      ]
+    },
+    {
       "segment": 7,
       "song": "Way Maker",
       "slides": [
@@ -308,7 +337,7 @@
         20,
         21
       ],
-      "size": 60,
+      "size": 66,
       "kind": "caesura",
       "lines": [
         {
@@ -319,7 +348,64 @@
           ]
         }
       ],
-      "reason": "1 line(s) too wide for the slide at 60px were broken at the caesura marked in songs/waymaker.md, keeping the song at full size."
+      "reason": "1 line(s) too wide for the slide at 66px were broken at the caesura marked in songs/waymaker.md, keeping the song at full size."
+    },
+    {
+      "segment": 7,
+      "song": "Way Maker",
+      "slides": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "size": 66,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 3 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 9px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/waymaker.md to keep the song at 75px.",
+      "unmarked": [
+        "Even when I don't see it, You're working.",
+        "Even when I don't feel it, You're working.",
+        "You never stop, You never stop working."
+      ]
+    },
+    {
+      "segment": 10,
+      "song": "I Am Resolved",
+      "slides": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "size": 60,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 16 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 15px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/i-am-resolved.md to keep the song at 75px.",
+      "unmarked": [
+        "Things that are higher, things that are nobler,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "He is the true One, He is the just One,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "Heed what He sayeth, do what He willeth,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "Friends may oppose me, foes may beset me,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "I am resolved, and who will go with me?",
+        "Taught by the Bible, led by the Spirit,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee."
+      ]
     }
   ],
   "missing": [

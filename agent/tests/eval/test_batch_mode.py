@@ -42,11 +42,14 @@ SERVICE_DATE_0712 = "2026-07-12"
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def run_0712(stage):
     # What the agent already knows. "O For A Thousand Tongues" is in the library
-    # and must be reused; everything else in this flowchart is new to it.
-    #   Tell Me the Story of Jesus     — public-domain hymn -> look it up, save it
-    #   Before the Throne of God Above — the invitation hymn, likewise
-    #   Forever Yahweh                 — modern praise, no lookup path -> ASK
+    # and must be reused; everything else in this flowchart is new to it, and
+    # since bs-1mf "new to it" has exactly one outcome regardless of copyright:
+    #   Tell Me the Story of Jesus     — public domain, but still ASK (bs-1mf)
+    #   Before the Throne of God Above — the invitation hymn, likewise ASK
+    #   Forever Yahweh                 — modern praise, ASK
     #   Amazing Love Medley            — a choir number, never from the library
+    # The point of keeping a public-domain hymn in this fixture is precisely that
+    # it must NOT be treated differently anymore.
     ws = stage("s0712")
     seed_library(ws, keep={"o-for-a-thousand-tongues-to-sing", "waymaker"})
 
@@ -107,15 +110,29 @@ async def test_0712_asks_for_the_lyrics_it_could_not_find(run_0712):
 
     missing_lyrics = [m for m in report["missing"] if "lyric" in m.get("need", "").lower()]
     assert missing_lyrics, (
-        "Forever Yahweh is a modern praise song with no lookup path, so the agent "
-        f"should have reported it as missing lyrics rather than inventing them. "
+        "Forever Yahweh is not in the library, so the agent should have reported "
+        f"it as missing lyrics rather than supplying them itself. "
         f"Report: {report['missing']}"
     )
     assert any("yahweh" in m.get("song", "").lower() for m in missing_lyrics)
 
-    assert "yahweh" in run_0712.reply.lower(), (
-        f"the reply never mentions the song it needs lyrics for:\n\n{run_0712.reply}"
-    )
+    # EVERY song it could not resolve has to surface in the reply, not just one:
+    # a song silently dropped between the report and the email is never asked for
+    # by anyone, and shows up as a blank slide on Sunday.
+    #
+    # Match on a distinctive word from the title rather than the whole string. The
+    # agent renders titles as it judges best — this flowchart's "Forever Yahweh"
+    # came back as "Forever YHWH" — and an exact-match assertion fails on a
+    # spelling choice while the behaviour under test is perfectly correct.
+    reply = run_0712.reply.lower()
+    for m in missing_lyrics:
+        title = m.get("title") or m.get("song", "")
+        words = [w.strip(",.;:!?\"'()") for w in title.lower().split()]
+        distinctive = [w for w in words if len(w) >= 4]
+        assert not distinctive or any(w in reply for w in distinctive), (
+            f"the reply never asks for {title!r}, so nobody will ever send those "
+            f"lyrics:\n\n{run_0712.reply}"
+        )
 
 
 async def test_0712_reuses_the_library_and_asks_for_everything_else(run_0712):
@@ -139,7 +156,9 @@ async def test_0712_reuses_the_library_and_asks_for_everything_else(run_0712):
 
     # Asking is only half of it: the deck still has to be worth having. Missing lyrics
     # are non-blocking, so the build must succeed and the request must reach him.
-    needed = {m.get("song", "").lower() for m in report["missing"]}
+    # `missing` identifies songs by SLUG, so match on the slug form — comparing a
+    # spaced title against "tell-me-the-story-of-jesus" silently never matches.
+    needed = {m.get("song", "").lower().replace("-", " ") for m in report["missing"]}
     assert any("story of jesus" in s for s in needed), (
         f"the hymn was left title-only but never reported under `missing`, so nobody "
         f"is ever asked for it: {sorted(needed)}"
