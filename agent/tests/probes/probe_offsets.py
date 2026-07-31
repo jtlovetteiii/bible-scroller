@@ -42,13 +42,20 @@ from probe_intermediary import DECOYS, PROSE, build_email  # noqa: E402
 PROXY_URL = os.getenv("FALLBACK_API_BASE_URL", "http://192.168.0.48:9223")
 
 
-def call_model(model: str, prompt: str, timeout: float) -> tuple[str, dict]:
+#: Bonsai spends most of its budget on reasoning tokens the proxy does not surface.
+#: At max_tokens=4000 it returned stop_reason=max_tokens with an EMPTY text block —
+#: it never reached an answer. 16000 leaves room to think and still reply (measured:
+#: 5969 output tokens for a 273-character answer, i.e. ~95% invisible reasoning).
+DEFAULT_MAX_TOKENS = 16000
+
+
+def call_model(model: str, prompt: str, timeout: float, max_tokens: int) -> tuple[str, dict]:
     r = httpx.post(
         f"{PROXY_URL.rstrip('/')}/v1/messages",
         headers={"content-type": "application/json", "anthropic-version": "2023-06-01"},
         json={
             "model": model,
-            "max_tokens": 4000,
+            "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=timeout,
@@ -62,7 +69,8 @@ def call_model(model: str, prompt: str, timeout: float) -> tuple[str, dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="bonsai")
-    ap.add_argument("--timeout", type=float, default=900.0)
+    ap.add_argument("--timeout", type=float, default=1800.0)
+    ap.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     args = ap.parse_args()
 
     email_text, all_lyrics = build_email()
@@ -78,7 +86,7 @@ def main() -> int:
     prompt = build_prompt(email_text)
     t0 = time.monotonic()
     try:
-        raw, usage = call_model(args.model, prompt, args.timeout)
+        raw, usage = call_model(args.model, prompt, args.timeout, args.max_tokens)
     except Exception as exc:  # noqa: BLE001
         print(f"CALL FAILED: {type(exc).__name__}: {str(exc)[:300]}")
         return 1
