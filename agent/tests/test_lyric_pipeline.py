@@ -149,6 +149,27 @@ def test_no_song_swallows_another(merged, email):
             )
 
 
+def test_no_line_is_stranded_in_the_wrong_song(merged, email):
+    """A claimed line between two lines of song X belongs to X.
+
+    Line 180, 'Singing "Holy", singing "Holy"', was filed under One Day while 178, 179
+    and 181 were all All Hail King Jesus — a real lyric in the wrong song file. The
+    frontier model caught it and moved it by hand, which is exactly the kind of rescue
+    this design must not depend on.
+    """
+    owner: dict[int, str] = {}
+    for song in merged.songs:
+        for sec in song.sections:
+            for i in range(sec.start, sec.end + 1):
+                owner[i] = song.slug
+    islands = [
+        i for i in owner
+        if owner.get(i - 1) and owner.get(i - 1) == owner.get(i + 1) != owner[i]
+    ]
+    assert not islands, f"lines stranded in the wrong song: {islands}"
+    assert owner[180] == "all-hail-king-jesus"
+
+
 def test_overclaim_candidates_are_reported(merged):
     """They cannot be dropped (that is the leak direction) so they must be surfaced."""
     assert merged.low_confidence, "no over-claim candidates flagged at all"

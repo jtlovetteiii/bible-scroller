@@ -78,10 +78,15 @@ class ConsensusReport:
     #: over-claim candidates, so the reply can say "check these" without quoting the
     #: line, which is what §4.2 asks for and the tool otherwise cannot express.
     #:
-    #: MEASURED on the real 7/26 email (5 specs): recall 4/5, precision 4/5. It flags
-    #: four of the five swallowed "<Song> lyrics:" labels, misses one, and falsely
-    #: flags one genuine lyric ('Singing "Holy", singing "Holy"' — a real line that
-    #: only some runs claimed).
+    #: MEASURED on the real 7/26 email (5 specs): recall 4/5, precision 4/4 — it flags
+    #: four of the five swallowed "<Song> lyrics:" labels and misses one.
+    #:
+    #: It briefly scored 4/5 on precision, and the "false positive" was worth more than
+    #: the true ones: line 180, 'Singing "Holy", singing "Holy"', was a genuine lyric
+    #: filed under the wrong song. That was a real bug in ownership (a single-line
+    #: island), now fixed by the smoothing pass below — after which the line stopped
+    #: being flagged. A low-confidence line means "something here is off", not
+    #: specifically "this is prose".
     #:
     #: DIAGNOSTIC ONLY. Nothing is dropped on the strength of it, and at 4/5 precision
     #: nothing should be: dropping un-claims a line, which is the leak direction, and
@@ -195,13 +200,31 @@ def consensus(
     # put the breaks.
     blank = {i for i, l in enumerate(email_text.splitlines(), 1) if not l.strip()}
 
-    lines_owned: dict[str, list[int]] = collections.defaultdict(list)
+    owner_of: dict[int, str] = {}
     for ln, total in sorted(line_votes.items()):
         if total < line_threshold or ln in blank:
             continue
         who = owner(ln)
         if who is not None:
-            lines_owned[who].append(ln)
+            owner_of[ln] = who
+
+    # --- smooth single-line islands -----------------------------------------
+    # A line whose own vote went to a different song from BOTH its immediate
+    # neighbours belongs to the neighbours: songs are contiguous blocks of text, and
+    # one line of another song cannot appear inside a stanza. Measured on the real
+    # 7/26 email: line 180, 'Singing "Holy", singing "Holy"', was filed under One Day
+    # while 178, 179 and 181 were all All Hail King Jesus — a genuine lyric landing in
+    # the wrong song file, which the frontier model then noticed and moved by hand.
+    #
+    # Attribution only. The line stays claimed either way, so this cannot leak.
+    for ln in sorted(owner_of):
+        left, right = owner_of.get(ln - 1), owner_of.get(ln + 1)
+        if left is not None and left == right and owner_of[ln] != left:
+            owner_of[ln] = left
+
+    lines_owned: dict[str, list[int]] = collections.defaultdict(list)
+    for ln, who in sorted(owner_of.items()):
+        lines_owned[who].append(ln)
 
     songs: list[Song] = []
     for key, claimed in lines_owned.items():
