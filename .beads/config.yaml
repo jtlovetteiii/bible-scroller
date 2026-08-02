@@ -62,3 +62,22 @@
 # - github.repo
 
 dolt.auto-commit: "on"
+
+# Dolt remote for multi-machine sync (bs-mkk). Issue data rides in refs/dolt/data
+# on the SAME GitHub remote as the code, so there is no second thing to host and
+# no second thing to authenticate against.
+#
+# This exists because the JSONL alone was not enough. Before this was set, each
+# machine kept its own Dolt DB and .beads/issues.jsonl was the only carrier
+# between them — on 2026-08-02 this clone's DB held 44 issues while the tracked
+# JSONL held 58, and a single mutation would have exported the 44 over the file
+# and dropped the other 14 silently.
+#
+# On a FRESH CLONE: bd reads this key and clones the database from the remote,
+# then run `bd init`. Without it a fresh clone finds .beads/ committed but no
+# database, and you are back to rebuilding from JSONL by hand.
+#
+# ONGOING, and the part that is easy to get wrong: this key is for BOOTSTRAP.
+# It does not make pushes automatic. After changing issues you still need
+# `bd dolt push`, the same way code needs `git push` — see AGENTS.md.
+sync.git-remote: git@github.com:jtlovetteiii/bible-scroller.git
