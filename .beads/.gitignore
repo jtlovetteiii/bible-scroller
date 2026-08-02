@@ -18,6 +18,11 @@ redirect
 # Sync state (local-only, per-machine)
 # These files are machine-specific and should not be shared across clones
 .sync.lock
+
+# Written by `bd dolt push` — records THIS machine's last push (timestamp +
+# Dolt commit hash). Committing it would hand every other clone a push marker
+# describing a push it never made.
+push-state.json
 export-state/
 
 # Ephemeral store (SQLite - wisps/molecules, intentionally not versioned)

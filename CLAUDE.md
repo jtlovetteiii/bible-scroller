@@ -197,7 +197,15 @@ bd close <id>         # Complete work
    git pull --rebase
    git push
    git status  # MUST show "up to date with origin"
+
+   bd dolt push  # issue data — NOT automatic, and NOT covered by git push
    ```
+   `bd dolt push` sends the issue database to `refs/dolt/data` on the same
+   GitHub remote (configured as `sync.git-remote` in `.beads/config.yaml`).
+   Skipping it is how clones drift apart: `.beads/issues.jsonl` alone is a
+   passive export, and a machine that never pulled your Dolt data can export
+   its own staler database straight over the file. On a fresh clone, run
+   `bd bootstrap` (reads `sync.git-remote`, clones the DB) before `bd init`.
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
