@@ -19,6 +19,9 @@ deliberately.
 | `lyric_consensus.py` | **pure, no network.** Merges N specs by vote |
 | `probe_offsets.py` | one call → spec → deterministic apply |
 | `probe_consensus.py` | N calls → consensus → deterministic apply. **The current design.** |
+| `fixture_0726.py` | **pure.** Slices the real 7/26 thread out of `examples/flowcharts.md` |
+| `probe_gate.py` | **the gate** (spec §7.1/§7.2) — a full cloud agent run over the redacted thread |
+| `verify_0726.py` | **pure.** Checks a finished run against `bs-2pn`'s acceptance criteria |
 
 `lyric_offsets.py` and `lyric_consensus.py` are real implementations, not throwaways —
 they are the deterministic half, ready to promote into `src/email_agent/`.
@@ -91,6 +94,35 @@ byte-exact lyrics while DUPLICATING stanza headings — 16 where 10 were correct
 it ran a `grep -n` inspection pass first. Model-authored shell is not deterministic;
 the probe therefore asserts on the heading count, and the real implementation must
 use a fixed, golden-tested tool.
+
+## The real 7/26 email (2026-08-02, `bs-2pn`)
+
+Everything above this line was measured on the **synthetic** fixture. Against the real
+262-line email the numbers did not hold, and the gate has now been run. Both results
+are written up in `specs/lyric-ingestion.md` §7.1 and §7.3 — read those, not this
+summary — but the two headlines:
+
+- **The consensus needed real work.** 0 of 7 runs produced an acceptable spec, always
+  for the same reason (a song's last section running long). After a prompt fix,
+  `repair_spec`, per-line ownership and not claiming blank lines: **K≥1…K≥3 leak 0**,
+  212/212 verbatim, six songs. Calls cost **~40s each here, not 6.3s** — that figure
+  was the small synthetic.
+- **The gate is not a yes/no.** The same redacted thread 400'd once and built a
+  complete deck the next time. Use `probe_gate.py --repeat` and read the *rate*; a
+  single green run is not evidence.
+
+Re-scoring the consensus does not need the model — cache the specs once and iterate
+offline:
+
+```bash
+LOCAL_LLM_BASE_URL=http://100.66.185.49:8080 \
+  uv run python -u tests/probes/probe_consensus.py --fixture 0726 -n 7 \
+    --save-specs /tmp/specs.json --out-dir /tmp/gate
+uv run python -u tests/probes/probe_consensus.py --fixture 0726 -n 7 --sweep \
+    --load-specs /tmp/specs.json          # no model calls
+uv run python -u tests/probes/probe_gate.py --in-dir /tmp/gate --arm redacted \
+    --repeat 5 --keep-workspaces /tmp/ws  # costs real cloud runs
+```
 
 ## Caveat on all of the above
 
