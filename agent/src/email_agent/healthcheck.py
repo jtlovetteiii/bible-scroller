@@ -28,7 +28,7 @@ import json
 import sys
 from typing import Any
 
-from .config import config, assert_subscription_auth
+from .config import config, assert_agent_auth
 from .gmail_client import gmail_service
 
 #: The ONLY identity allowed to publish. Root or a personal profile is a FAIL,
@@ -41,6 +41,46 @@ AGENT_ARN_SUFFIX = ":user/cbc-wilm-agent"
 #: probe object cannot clean itself up — overwrite is allowed and proven, and
 #: adding Delete to the policy just to tidy up would widen it for no reason.
 PROBE_KEY = "_policy-probe/healthcheck.txt"
+
+
+def _check_alternate_backend() -> list[str]:
+    """Print OK/FAIL for AGENT_BASE_URL; return failure strings (empty == healthy).
+
+    Deliberately probes `/v1/models` rather than sending a completion: it is cheap,
+    needs no token budget, and still proves the three things that actually break —
+    the host is up, it is reachable from *this* box, and it is speaking Anthropic's
+    API shape rather than an OpenAI one (bs-dox's blocking question).
+
+    A 401/403 counts as reachable: the endpoint answered, the credential is the
+    problem, and saying so is more useful than a bare "unreachable".
+    """
+    import urllib.error
+    import urllib.request
+
+    base = (config.agent_base_url or "").rstrip("/")
+    url = f"{base}/v1/models"
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("anthropic-version", "2023-06-01")
+    if config.agent_auth_token:
+        req.add_header("Authorization", f"Bearer {config.agent_auth_token}")
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f"OK    claude: {base} reachable (HTTP {resp.status}), model {config.agent_model}")
+            return []
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            msg = f"{base} answered HTTP {exc.code} — reachable, but rejected the credential"
+            print(f"FAIL  claude: {msg}")
+            return [f"claude: {msg}"]
+        # Anything else that produced a response still proves reachability, which
+        # is what this check is for. /v1/models is optional in a proxy.
+        print(f"OK    claude: {base} reachable (HTTP {exc.code}), model {config.agent_model}")
+        return []
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        msg = f"{base} unreachable: {type(exc).__name__}: {exc}"
+        print(f"FAIL  claude: {msg}")
+        return [f"claude: {msg}"]
 
 
 def _aws_clients(sts: Any | None = None, s3: Any | None = None) -> tuple[Any, Any]:
@@ -132,8 +172,14 @@ def main() -> int:
 
     # --- Claude auth ---
     try:
-        assert_subscription_auth()
-        print("OK    claude: CLAUDE_CODE_OAUTH_TOKEN set, ANTHROPIC_API_KEY unset")
+        assert_agent_auth()
+        if config.uses_alternate_backend:
+            # Credentials are not the interesting failure for a self-hosted
+            # endpoint — reachability is, and it fails exactly the way this whole
+            # module exists to catch: silently, mid-run, on a Saturday.
+            failures.extend(_check_alternate_backend())
+        else:
+            print("OK    claude: CLAUDE_CODE_OAUTH_TOKEN set, ANTHROPIC_API_KEY unset")
     except RuntimeError as exc:
         failures.append(f"claude: {exc}")
         print(f"FAIL  claude: {exc}")

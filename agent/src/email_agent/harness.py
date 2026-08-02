@@ -26,7 +26,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from .config import REPO_ROOT, config, assert_subscription_auth
+from .config import REPO_ROOT, config, assert_agent_auth
 from .publish import PUBLISH_TOOL_NAMES, publish_tools_server
 from .tools import GMAIL_TOOL_NAMES, gmail_tools_server
 
@@ -132,7 +132,16 @@ def _stderr_capture(
 
 
 async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | None:
-    assert_subscription_auth()
+    assert_agent_auth()
+
+    if config.uses_alternate_backend:
+        # Log the endpoint, never the token. Which backend served a run is the
+        # first thing you need when reading back a transcript that looks wrong,
+        # and today the journal has no other way to tell.
+        logger.info(
+            "thread %s: routing to %s (model %s)",
+            thread_id, config.agent_base_url, config.agent_model,
+        )
 
     cli_stderr: collections.deque[str] = collections.deque(maxlen=STDERR_TAIL_LINES)
 
@@ -152,6 +161,10 @@ async def _run(thread_id: str, msg_id: str, session_id: str | None) -> str | Non
         ],
         permission_mode="bypassPermissions",  # headless: nobody can approve a prompt
         resume=session_id,
+        # Empty on the default path. When AGENT_BASE_URL is set this redirects the
+        # CLI subprocess — and only it — at that endpoint; the SDK merges this over
+        # the inherited environment, so these keys win. See config.agent_env().
+        env=config.agent_env(),
         # Without this the CLI's stderr is not piped to us at all — the failure
         # that prompted this (bs-zwj) was opaque precisely because we never asked
         # for it.

@@ -49,7 +49,7 @@ from claude_agent_sdk import (
     tool,
 )
 
-from email_agent.config import REPO_ROOT, assert_subscription_auth, config
+from email_agent.config import REPO_ROOT, assert_agent_auth, config
 
 # Directories the skill and build script need. `scripts/` must be COPIED, not
 # symlinked: build-deck.js derives its root from its own __dirname, so a symlink
@@ -200,7 +200,7 @@ Subject: AI: {subject}
 
 async def run_gen_service(ws: Path, flowchart: str, *, subject: str, today: str) -> EvalRun:
     """Run the real skill, on the real model, against one flowchart."""
-    assert_subscription_auth()
+    assert_agent_auth()
     run = EvalRun(workspace=ws)
 
     @tool(

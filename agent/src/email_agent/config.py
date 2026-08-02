@@ -90,7 +90,75 @@ class Config:
     #: Hard cap on a single agent run, so a wedged run can't hold its thread lock forever.
     agent_timeout_seconds: int = int(os.getenv("AGENT_TIMEOUT_SECONDS", "1800"))
     #: The model the agent runs on. Sonnet keeps API cost down — the point of the epic.
-    agent_model: str = os.getenv("AGENT_MODEL", "claude-sonnet-5")
+    #:
+    #: default_factory, not a plain default: see `deck_base_url` above. A bare
+    #: os.getenv default is evaluated once at import, so a test that sets the
+    #: environment and then builds a fresh Config() would silently get the value
+    #: captured at import time instead of the one it just set.
+    agent_model: str = field(
+        default_factory=lambda: os.getenv("AGENT_MODEL", "claude-sonnet-5")
+    )
+
+    # --- Alternate backend (bs-dox) ---
+    #: Anthropic-compatible endpoint to route the agent at instead of api.anthropic.com.
+    #: Unset (the normal case) means the subscription, via CLAUDE_CODE_OAUTH_TOKEN.
+    #:
+    #: This exists because the content-filter 400 of bs-a1f is a property of the
+    #: *endpoint*, not of the model: per bs-a1f lyrics merely being in context is
+    #: enough to trip it, so no amount of prompt or output shaping avoids it. The
+    #: only fix that generalises is to send the run somewhere else, so the backend
+    #: is configuration rather than code.
+    #:
+    #: Must speak Anthropic's /v1/messages — an OpenAI-shaped endpoint will not
+    #: work directly, it needs a translating proxy in front (bs-dox).
+    agent_base_url: str | None = field(
+        default_factory=lambda: os.getenv("AGENT_BASE_URL") or None
+    )
+    #: Bearer token for `agent_base_url`. Optional: a proxy on a trusted LAN may
+    #: not require one, and an empty value is passed through as "no credential"
+    #: rather than as an empty header.
+    agent_auth_token: str | None = field(
+        default_factory=lambda: os.getenv("AGENT_AUTH_TOKEN") or None
+    )
+
+    @property
+    def uses_alternate_backend(self) -> bool:
+        """True when runs are routed somewhere other than the Anthropic API."""
+        return self.agent_base_url is not None
+
+    def agent_env(self) -> dict[str, str]:
+        """Environment overlay for the CLI subprocess that runs one agent turn.
+
+        Returned as `ClaudeAgentOptions.env`, which the SDK merges OVER the
+        inherited environment (`subprocess_cli.py`), so what we put here wins over
+        anything in the service's own env. That is the whole point: the parent
+        process keeps its subscription credentials for every other purpose, and
+        only the child is redirected.
+
+        Empty on the default path — an empty overlay leaves the inherited
+        environment, and therefore the subscription auth, exactly as it is today.
+        """
+        if not self.uses_alternate_backend:
+            return {}
+
+        env = {
+            "ANTHROPIC_BASE_URL": self.agent_base_url or "",
+            # Blank rather than absent. The overlay is merged, not substituted, so
+            # a key we simply omit keeps the INHERITED value — and an inherited
+            # subscription token pointed at a third-party endpoint is a credential
+            # leak, not just a misconfiguration. Setting it empty is the only way
+            # this dict can suppress something.
+            "CLAUDE_CODE_OAUTH_TOKEN": "",
+            # Same reasoning, plus: ANTHROPIC_API_KEY outranks ANTHROPIC_AUTH_TOKEN,
+            # so a stray one would silently shadow the token we set below.
+            "ANTHROPIC_API_KEY": "",
+        }
+        if self.agent_auth_token:
+            # AUTH_TOKEN (Authorization: Bearer), not API_KEY (x-api-key): setting
+            # both makes the client send both headers, which Anthropic-compatible
+            # servers reject. Pick exactly one.
+            env["ANTHROPIC_AUTH_TOKEN"] = self.agent_auth_token
+        return env
 
     #: How many times one message may be attempted before the dispatcher gives up
     #: on it, apologises once, and drops it from the retry pool (bs-9ed).
@@ -133,16 +201,28 @@ class Config:
         return f"{self._origin}/templates/service"
 
 
-def assert_subscription_auth() -> None:
-    """Guard the billing foot-gun from spec §4.6.
+def assert_agent_auth() -> None:
+    """Check that the configured backend has credentials it can actually use.
 
-    If ANTHROPIC_API_KEY is set it silently wins over CLAUDE_CODE_OAUTH_TOKEN and
-    bills a pay-per-token API account instead of the subscription. Fail loudly.
+    Two backends, two different checks — the subscription foot-gun below is a
+    statement about *Anthropic's* billing, so it does not apply when the run is
+    not going to Anthropic at all.
     """
+    if config.uses_alternate_backend:
+        # An ANTHROPIC_API_KEY in the environment is harmless here: agent_env()
+        # blanks it in the child, and nothing bills a subscription that isn't
+        # being used. The token is optional (a LAN proxy may not want one), so
+        # there is nothing left to require.
+        return
+
+    # Guard the billing foot-gun from spec §4.6. If ANTHROPIC_API_KEY is set it
+    # silently wins over CLAUDE_CODE_OAUTH_TOKEN and bills a pay-per-token API
+    # account instead of the subscription. Fail loudly.
     if os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError(
             "ANTHROPIC_API_KEY is set — it overrides CLAUDE_CODE_OAUTH_TOKEN and would "
-            "bill a pay-per-token API account instead of the subscription. Unset it."
+            "bill a pay-per-token API account instead of the subscription. Unset it, or "
+            "set AGENT_BASE_URL to route this run at a different backend on purpose."
         )
     if not os.getenv("CLAUDE_CODE_OAUTH_TOKEN"):
         raise RuntimeError(

@@ -53,7 +53,7 @@ def _fake_query(*messages):
 
 def _patch(monkeypatch, *messages):
     monkeypatch.setattr(harness, "query", _fake_query(*messages))
-    monkeypatch.setattr(harness, "assert_subscription_auth", lambda: None)
+    monkeypatch.setattr(harness, "assert_agent_auth", lambda: None)
     monkeypatch.setattr(harness, "gmail_tools_server", lambda: {"type": "sdk", "name": "gmail"})
     # isinstance() checks in the harness must recognise our doubles
     monkeypatch.setattr(harness, "SystemMessage", FakeSystem)

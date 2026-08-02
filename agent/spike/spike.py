@@ -34,7 +34,7 @@ from claude_agent_sdk import (  # noqa: E402
     query,
 )
 
-from email_agent.config import REPO_ROOT, assert_subscription_auth  # noqa: E402
+from email_agent.config import REPO_ROOT, assert_agent_auth  # noqa: E402
 
 SESSION_FILE = Path(__file__).parent / ".session_id"
 MODEL = os.getenv("AGENT_MODEL", "claude-sonnet-5")
@@ -98,7 +98,7 @@ def _billing_verdict(rate_limit_type: str | None, result: ResultMessage | None) 
 
 async def check_auth() -> bool:
     print("\n=== 1. AUTH: headless query bills the subscription ===")
-    assert_subscription_auth()  # raises if ANTHROPIC_API_KEY set / token missing
+    assert_agent_auth()  # raises if ANTHROPIC_API_KEY set / token missing
     print("  env guard passed: ANTHROPIC_API_KEY unset, CLAUDE_CODE_OAUTH_TOKEN set")
 
     text, sid, result, rlt = await _run("Reply with exactly the word: PONG")
