@@ -39,6 +39,13 @@ unattended, driven by an emailed order of service. Full design:
 - **`agent/`**: the Python Claude Agent SDK harness, Gmail gate/tools, and SQLite
   dispatcher. Tests: `cd agent && uv run pytest`; evals: `uv run pytest -m eval`.
 
+**Copyrighted lyrics are the agent's one unsolved failure mode.** Cloud models refuse
+or content-filter the licensed lyrics the church is entitled to display, which killed
+a real Sunday (2026-07-26). The design — extract lyrics with a local model that emits
+only line offsets, and slice them with deterministic code so no lyric text ever
+reaches a cloud model — is specified in **`specs/lyric-ingestion.md`** and tracked as
+`bs-8qs`. Nothing is implemented yet; the evidence lives in `agent/tests/probes/`.
+
 Two rules that are easy to violate: **the model emits data, not slide markup** —
 if a slide is wrong, fix `build-deck.js`, not the HTML; and **never hand-edit a
 generated `service-preview.html`** — it is rebuilt from the deck JSON on every

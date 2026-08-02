@@ -1,8 +1,41 @@
 # Content-filter / copyright probes
 
+> **The design these produced is written up in
+> [`specs/lyric-ingestion.md`](../../../specs/lyric-ingestion.md).** Read that first;
+> this file is the raw evidence behind it. Tracked as `bs-8qs`.
+
 Diagnostic scripts, not tests. `pytest` does not collect them (`testpaths = ["tests"]`
 with the default `test_*.py` pattern), and they cost real model calls — run them
 deliberately.
+
+## The files
+
+| file | what it is |
+|---|---|
+| `probe_filter.py` | does a model reproduce copyrighted lyrics, refuse, or get filtered? |
+| `probe_copy.py` | does deterministic copying sidestep the refusal? |
+| `probe_intermediary.py` | the local model as an *agentic* intermediary — **failed**, see below |
+| `lyric_offsets.py` | **pure, no network.** Numbering, prompt, spec parse/validate, slicing, redaction |
+| `lyric_consensus.py` | **pure, no network.** Merges N specs by vote |
+| `probe_offsets.py` | one call → spec → deterministic apply |
+| `probe_consensus.py` | N calls → consensus → deterministic apply. **The current design.** |
+
+`lyric_offsets.py` and `lyric_consensus.py` are real implementations, not throwaways —
+they are the deterministic half, ready to promote into `src/email_agent/`.
+
+## Calling the local model
+
+Go **direct to llama.cpp**, not through UniClaudeProxy — the proxy drops
+`chat_template_kwargs` (so reasoning cannot be disabled) and drops llama.cpp's separate
+`reasoning_content` field (so a truncated call looks like an empty answer). See
+`specs/lyric-ingestion.md` §3.2.
+
+```bash
+LOCAL_LLM_BASE_URL=http://100.66.185.49:8080 \
+  uv run python -u tests/probes/probe_consensus.py -n 7 --sweep
+```
+
+The address is volatile — the `192.168.x` one does not route from outside the house.
 
 They exist because the email agent's one unsolved failure mode is that the licensed
 song lyrics the church is entitled to display cannot reliably be put through a
