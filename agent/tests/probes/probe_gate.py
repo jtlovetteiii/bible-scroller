@@ -107,6 +107,11 @@ async def main() -> int:
                     help="repeatable; default is all three")
     ap.add_argument("--dump-dir", type=Path, default=None,
                     help="write each arm's assistant transcript here")
+    ap.add_argument("--repeat", type=int, default=1,
+                    help="run each arm this many times and report a PASS RATE. The "
+                         "filter is not a deterministic function of the input — the "
+                         "same redacted thread 400'd once and built a full deck the "
+                         "next time — so one run is an anecdote, not a result.")
     args = ap.parse_args()
 
     redacted = (args.in_dir / "redacted.txt").read_text(encoding="utf-8")
@@ -132,10 +137,16 @@ async def main() -> int:
         return args.dump_dir / f"{slug}.transcript.txt"
 
     results = []
-    if "redacted" in arms:
-        results.append(await run_arm(
-            "REDACTED ARM (§7.1) — the gate",
-            thread(redacted), songs_dir, dump_for("redacted")))
+    for trial in range(args.repeat):
+        tag = "" if args.repeat == 1 else f" [trial {trial + 1}/{args.repeat}]"
+        if "redacted" in arms:
+            results.append(await run_arm(
+                f"REDACTED ARM (§7.1) — the gate{tag}",
+                thread(redacted), songs_dir, dump_for(f"redacted-{trial + 1}")))
+        if "raw" in arms:
+            results.append(await run_arm(
+                f"RAW ARM (§7.2) — reproduction attempt{tag}",
+                thread(fixture_0726.minister_lyrics()), None, dump_for(f"raw-{trial + 1}")))
     if "redacted-noseed" in arms:
         # Same redacted thread, but songs/ is EMPTY. Disambiguates the gate: if the
         # seeded arm is filtered and this one is not, the trigger is the model
@@ -143,24 +154,23 @@ async def main() -> int:
         results.append(await run_arm(
             "REDACTED, NO SEEDED SONGS — is songs/*.md the trigger?",
             thread(redacted), None, dump_for("redacted-noseed")))
-    if "raw" in arms:
-        results.append(await run_arm(
-            "RAW ARM (§7.2) — reproduction attempt",
-            thread(fixture_0726.minister_lyrics()), None, dump_for("raw")))
 
     print(f"\n{'=' * 72}\nVERDICT\n{'=' * 72}")
     for r in results:
         state = "CONTENT-FILTERED" if r["filtered"] else ("RAISED" if r["raised"] else "completed")
         print(f"  {r['arm']:44} {state}")
-    gate = next((r for r in results if r["arm"].startswith("REDACTED")), None)
-    if gate:
-        if gate["filtered"]:
-            print("\n  GATE FAILED — the redacted thread is filtered too. The design does "
-                  "not buy safety; do not implement §5 as written.")
-        elif gate["raised"]:
-            print("\n  GATE INCONCLUSIVE — the run raised before finishing. Re-run.")
-        else:
-            print("\n  GATE PASSED — a fully redacted 7/26 thread clears the filter.")
+    for label in ("REDACTED ARM", "REDACTED, NO SEEDED", "RAW ARM"):
+        arm = [r for r in results if r["arm"].startswith(label)]
+        if not arm:
+            continue
+        clean = [r for r in arm if not r["filtered"] and not r["raised"]]
+        built = [r for r in clean if r.get("built_deck")]
+        print(f"\n  {label}: {len(clean)}/{len(arm)} runs cleared the filter, "
+              f"{len(built)}/{len(arm)} built a deck")
+        if label == "REDACTED ARM" and len(clean) < len(arm):
+            print("  A redacted thread is still filtered SOME of the time. The trigger "
+                  "is not a pure function of the email text, so a single green run is "
+                  "not evidence the design works.")
     return 0
 
 

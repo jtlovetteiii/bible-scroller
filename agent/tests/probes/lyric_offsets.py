@@ -332,7 +332,11 @@ def uniquify_section_names(songs: list[Song]) -> list[Repair]:
                 seen[base] = 1
                 continue
             seen[base] += 1
-            sec.name = f"{base} {seen[base]}"
+            # Parenthesised, because the names being disambiguated often already end
+            # in a number: a second "Verse 2" became "Verse 2 2", which the frontier
+            # model read as a typo and "fixed" to "Verse 3" — inventing a verse that
+            # is not in the email. "Verse 2 (2)" cannot be misread that way.
+            sec.name = f"{base} ({seen[base]})"
             repairs.append(Repair(
                 "rename", f"{song.slug}: duplicate '{base}' at line {sec.start} -> '{sec.name}'"
             ))

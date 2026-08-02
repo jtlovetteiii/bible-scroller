@@ -132,6 +132,6 @@ def test_duplicate_section_names_are_renamed_never_dropped():
     ])
     uniquify_section_names([song])
     names = [s.name for s in sorted(song.sections, key=lambda x: x.start)]
-    assert names == ["Chorus", "Verse 1", "Chorus 2", "Chorus 3"]
+    assert names == ["Chorus", "Verse 1", "Chorus (2)", "Chorus (3)"]
     assert len(names) == len(set(names))
     assert claimed([song]) == set(range(5, 8)) | set(range(9, 12)) | set(range(13, 16)) | set(range(17, 20))
