@@ -39,12 +39,21 @@ unattended, driven by an emailed order of service. Full design:
 - **`agent/`**: the Python Claude Agent SDK harness, Gmail gate/tools, and SQLite
   dispatcher. Tests: `cd agent && uv run pytest`; evals: `uv run pytest -m eval`.
 
-**Copyrighted lyrics are the agent's one unsolved failure mode.** Cloud models refuse
-or content-filter the licensed lyrics the church is entitled to display, which killed
-a real Sunday (2026-07-26). The design — extract lyrics with a local model that emits
-only line offsets, and slice them with deterministic code so no lyric text ever
-reaches a cloud model — is specified in **`specs/lyric-ingestion.md`** and tracked as
-`bs-8qs`. Nothing is implemented yet; the evidence lives in `agent/tests/probes/`.
+**Copyrighted lyrics were the agent's one unsolved failure mode — solved by changing
+the endpoint, not the pipeline.** Anthropic's API content-filters the licensed lyrics
+the church is entitled to display, which killed a real Sunday (2026-07-26). The filter
+is a property of the *endpoint*, not the model: lyrics merely being in context trips
+it, so no prompt or output shaping avoids it. The fix is `AGENT_BASE_URL` — point the
+agent's CLI subprocess at any Anthropic-compatible endpoint (currently Moonshot,
+`kimi-k3[1m]`). See `.env.example` and `Config.agent_env()`. Verified end to end on
+2026-08-02 and on a re-run of the 7/26 thread.
+
+*Shelved by that decision:* `specs/lyric-ingestion.md`, `agent/src/email_agent/lyrics/`,
+and `agent/tests/probes/` — the local-model/line-offset design (`bs-8qs`, `bs-2pn`)
+that avoided sending lyrics to a cloud model. It is **not wired into the runtime**;
+nothing imports `lyrics/`. Kept because the measurement work is real and the design is
+the fallback if the backend ever becomes unavailable. Do not build on it without
+deciding to revive it first.
 
 Two rules that are easy to violate: **the model emits data, not slide markup** —
 if a slide is wrong, fix `build-deck.js`, not the HTML; and **never hand-edit a
