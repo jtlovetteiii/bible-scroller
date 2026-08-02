@@ -81,6 +81,11 @@ The JSON must have this exact shape:
 Rules:
 - `start` and `end` are the NUMBERS SHOWN AT THE START OF EACH LINE, inclusive.
   Read them off the page. Do not count lines yourself.
+- `end` is the number on the LAST LINE THAT STILL HAS LYRIC TEXT ON IT. It is not the
+  blank line after the stanza, and it is NEVER a line belonging to the next song. If
+  the next song's heading is on line 75, the previous song cannot end at 75 or later.
+- Never let two songs share a line. Ranges must not overlap.
+- No line number may be larger than the last line number shown in the email.
 - Ranges must cover ONLY lyric lines. Never include a line of prose, an instruction,
   a greeting, or a bare song title in a range.
 - `title` is the song's real title. If the email states the title on its own line
@@ -185,6 +190,155 @@ def validate_spec(songs: list[Song], email_text: str) -> None:
                 claimed[i] = f"{song.slug}/{sec.name}"
 
 
+@dataclass
+class Repair:
+    kind: str  # "clamp" | "truncate" | "drop-contained" | "drop-empty"
+    detail: str
+
+    def __str__(self) -> str:  # pragma: no cover - logging sugar
+        return f"{self.kind}: {self.detail}"
+
+
+def repair_spec(songs: list[Song], email_text: str) -> tuple[list[Song], list[Repair]]:
+    """Fix the two mechanical errors the local model makes, instead of binning the spec.
+
+    Measured on the real 7/26 email (bs-2pn): 7/7 runs were rejected by validate_spec,
+    every one of them for the SAME thing — the `end` of a song's last section ran long,
+    either into the next song's first line or past the end of the email. The songs,
+    the titles and the bulk of the ranges were right every time. Rejecting the whole
+    spec threw away almost all of the signal and made the pipeline fail closed on the
+    one email it was built for.
+
+    THE SAFETY INVARIANT, and why these repairs are allowed:
+
+        the set of claimed LINES is never reduced.
+
+    A repair may only change WHICH song owns a line, never whether it is owned. That
+    matters because a claimed line is both extracted and redacted (§4.1) — so no repair
+    here can turn into a leak, which is the one error direction the design refuses to
+    take. Mis-attribution costs a line in the wrong song file and is visible; a leak
+    kills the run.
+
+    Repairs are returned, not swallowed. They are evidence about the model and belong
+    in the log.
+    """
+    n = len(email_text.splitlines())
+    repairs: list[Repair] = []
+
+    # --- 1. bring every range inside the document ----------------------------
+    flat: list[tuple[Song, Section]] = []
+    for song in songs:
+        for sec in song.sections:
+            if sec.start > n:
+                repairs.append(Repair("drop-empty", f"{song.slug}/{sec.name} starts at {sec.start} > {n} lines"))
+                continue
+            if sec.start < 1:
+                repairs.append(Repair("clamp", f"{song.slug}/{sec.name} start {sec.start} -> 1"))
+                sec.start = 1
+            if sec.end > n:
+                repairs.append(Repair("clamp", f"{song.slug}/{sec.name} end {sec.end} -> {n}"))
+                sec.end = n
+            if sec.start > sec.end:
+                repairs.append(Repair("drop-empty", f"{song.slug}/{sec.name} start {sec.start} > end {sec.end}"))
+                continue
+            flat.append((song, sec))
+
+    # --- 2. resolve overlaps in favour of the LATER-starting section ---------
+    # A contested line is nearly always the first line of the next song, which the
+    # previous song's range overran. The section that STARTS there is the one that
+    # actually owns it. Sorting by (start, end) also means that when two sections
+    # share a start, the longer one survives — again, never shrinking the union.
+    flat.sort(key=lambda pair: (pair[1].start, pair[1].end))
+    kept: list[tuple[Song, Section]] = []
+    for song, sec in flat:
+        if kept:
+            prev_song, prev = kept[-1]
+            if sec.start <= prev.end:
+                if sec.end <= prev.end:
+                    # Wholly inside the previous range: dropping it claims nothing
+                    # less, since `prev` already covers every one of its lines.
+                    repairs.append(Repair(
+                        "drop-contained",
+                        f"{song.slug}/{sec.name} {sec.start}-{sec.end} inside "
+                        f"{prev_song.slug}/{prev.name} {prev.start}-{prev.end}",
+                    ))
+                    continue
+                repairs.append(Repair(
+                    "truncate",
+                    f"{prev_song.slug}/{prev.name} end {prev.end} -> {sec.start - 1} "
+                    f"(overlapped {song.slug}/{sec.name} starting {sec.start})",
+                ))
+                prev.end = sec.start - 1
+                if prev.start > prev.end:
+                    # Only reachable when the two shared a start, so `sec` is a
+                    # superset of `prev` and the union is still intact.
+                    repairs.append(Repair(
+                        "drop-empty", f"{prev_song.slug}/{prev.name} emptied by truncation"
+                    ))
+                    kept.pop()
+        kept.append((song, sec))
+
+    # --- 3. drop sections that truncation left holding nothing but blanks ----
+    # validate_spec rejects an all-blank range, and a blank line carries no lyric, so
+    # this cannot leak. The invariant above is therefore exactly: no NON-BLANK claimed
+    # line is ever given up.
+    lines = email_text.splitlines()
+    surviving: list[tuple[Song, Section]] = []
+    for song, sec in kept:
+        if any(lines[i - 1].strip() for i in range(sec.start, sec.end + 1)):
+            surviving.append((song, sec))
+        else:
+            repairs.append(Repair(
+                "drop-empty", f"{song.slug}/{sec.name} {sec.start}-{sec.end} is all blank"
+            ))
+    kept = surviving
+
+    # --- 4. rebuild the songs from the surviving sections --------------------
+    by_song: dict[int, list[Section]] = {}
+    for song, sec in kept:
+        by_song.setdefault(id(song), []).append(sec)
+    out: list[Song] = []
+    for song in songs:
+        secs = by_song.get(id(song), [])
+        if not secs:
+            repairs.append(Repair("drop-empty", f"{song.slug} has no surviving sections"))
+            continue
+        out.append(Song(slug=song.slug, title=song.title,
+                        sections=sorted(secs, key=lambda s: s.start)))
+    return out, repairs
+
+
+def uniquify_section_names(songs: list[Song]) -> list[Repair]:
+    """Make every `## Section` heading unique within its song. Mutates in place.
+
+    songs/*.md requires it: schemas/deck.schema.json says a deck's `sections` is an
+    "ordered list of `## Section` headings to project, repeats and all" and "every
+    name must exist in the song file". So repeats are expressed by NAMING a section
+    twice in the deck, and a file with two `## Chorus` headings is ambiguous about
+    which one a deck means.
+
+    Duplicates are RENAMED, never dropped. Dropping would be the obvious move — a
+    repeated chorus is the same text twice — but `redact()` walks these same sections
+    to decide what to delete from the email, so a dropped section is a lyric block
+    that never gets removed. That is precisely the leak this design exists to prevent.
+    Renaming keeps extraction and deletion over one identical range set (§4.1).
+    """
+    repairs: list[Repair] = []
+    for song in songs:
+        seen: dict[str, int] = {}
+        for sec in sorted(song.sections, key=lambda s: s.start):
+            base = sec.name
+            if base not in seen:
+                seen[base] = 1
+                continue
+            seen[base] += 1
+            sec.name = f"{base} {seen[base]}"
+            repairs.append(Repair(
+                "rename", f"{song.slug}: duplicate '{base}' at line {sec.start} -> '{sec.name}'"
+            ))
+    return repairs
+
+
 def render_song(song: Song, email_text: str) -> str:
     """Build songs/<slug>.md by SLICING the email. No text is regenerated."""
     lines = email_text.splitlines()
@@ -203,7 +357,13 @@ def render_song(song: Song, email_text: str) -> str:
         out.append(f"## {sec.name}")
         out.extend(lines[sec.start - 1 : sec.end])
         out.append("")
-    return "\n".join(out).rstrip() + "\n"
+    # Drop trailing BLANK LINES only. A blanket .rstrip() also eats trailing spaces
+    # off the last lyric line, and several lines in the real 7/26 email have them
+    # ("(2x) ", "Just beyond the river. ") — which breaks the verbatim guarantee for
+    # whichever line happens to land last in the file.
+    while out and not out[-1].strip():
+        out.pop()
+    return "\n".join(out) + "\n"
 
 
 def redact(songs: list[Song], email_text: str) -> str:
