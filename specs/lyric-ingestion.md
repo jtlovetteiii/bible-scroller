@@ -5,7 +5,7 @@
   does not close (§4.5, `bs-vhp`). The deterministic half now lives in
   `agent/src/email_agent/lyrics/` with golden tests (§5); everything that talks to a
   model or to Gmail is still unbuilt.
-- **Date:** 2026-08-01 (gate results and §4.5 added 2026-08-02)
+- **Date:** 2026-08-01 (gate results, §4.5 and the §5 promotion added 2026-08-02)
 - **Issue:** `bs-8qs` (carries the full experimental record)
 - **Related:** `bs-a1f` (the incident), `bs-e4m` (spike, closed), `bs-dox` (superseded
   approach), `bs-zzq`, `bs-7sb`, `bs-fsx`, `bs-752`
@@ -379,14 +379,19 @@ Log the vote counts per line. When N is reduced, the near-miss lines
 
 ### 7.1 The gate — does the *redacted* thread clear the filter?
 
-> **RUN 2026-08-01 (`bs-2pn`). Result: the question is malformed as posed.** The
-> redacted thread was put through a full cloud agent run twice. The first died on
-> `400 Output blocked by content filtering policy` having written nothing; the second
-> cleared the filter, built a 76-slide deck and replied naming all six songs.
-> **The filter is not a deterministic function of the input**, so neither a 400 nor a
-> green run settles anything on its own — use `probe_gate.py --repeat` and read the
-> *rate*. (Caveat: those two runs were not a clean A/B — the second also used the
-> improved redaction, so variance and input quality are confounded.)
+> **RUN 2026-08-01/02 (`bs-2pn`). Result: the question is malformed as posed, and the
+> answer is a rate.** Seven full cloud agent runs over the redacted thread:
+> **6 cleared the filter and built a deck; 1 was blocked.** The single 400 was the
+> first run, and it used the earlier redaction — fused sections, one song's lyrics
+> sitting inside another song's file, duplicate headings. Every run on the corrected
+> redaction cleared: **6/6**.
+>
+> Read that carefully. It is n=1 on the old redaction, so two explanations are still
+> open — a base failure rate around 15%, or the redaction quality mattering — and this
+> does not separate them. 6/6 is also consistent with a true failure rate up to ~20%;
+> it does **not** establish zero. **The filter is not a deterministic function of the
+> input**, so no single run settles anything in either direction. Use
+> `probe_gate.py --repeat` and read the rate.
 >
 > Two things the passing run exposed, both worth more than the pass itself:
 >
@@ -486,11 +491,10 @@ Follows the existing pattern: deciding *nothing* is an error (`harness.py:237`,
 
 ## 9. Open questions
 
-1. ~~**Does the redacted thread clear the filter?**~~ **Answered, partly, 2026-08-01.**
-   Sometimes. It both 400'd and built a complete deck on the same fixture, so the
-   filter is not a pure function of the input and the real question is now *at what
-   rate*, measured with `probe_gate.py --repeat`. Until that rate is known, no claim
-   about safety should be made from a green run. See §7.1.
+1. ~~**Does the redacted thread clear the filter?**~~ **Answered as a rate, 2026-08-02:
+   6 of 7 runs cleared it; 6/6 on the corrected redaction.** Good enough to keep
+   building, not good enough to call solved — see §7.1 for why the one failure does
+   not separate "base rate ~15%" from "the redaction quality mattered".
 1a. **Can the tool → model channel be closed?** `bs-vhp`, §4.5. Newly found and
    arguably now the binding constraint: the build report hands the model ~50
    copyrighted lyric lines regardless of how clean the email is.
