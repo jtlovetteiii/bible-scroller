@@ -15,16 +15,17 @@ deliberately.
 | `probe_filter.py` | does a model reproduce copyrighted lyrics, refuse, or get filtered? |
 | `probe_copy.py` | does deterministic copying sidestep the refusal? |
 | `probe_intermediary.py` | the local model as an *agentic* intermediary — **failed**, see below |
-| `lyric_offsets.py` | **pure, no network.** Numbering, prompt, spec parse/validate, slicing, redaction |
-| `lyric_consensus.py` | **pure, no network.** Merges N specs by vote |
 | `probe_offsets.py` | one call → spec → deterministic apply |
 | `probe_consensus.py` | N calls → consensus → deterministic apply. **The current design.** |
 | `fixture_0726.py` | **pure.** Slices the real 7/26 thread out of `examples/flowcharts.md` |
 | `probe_gate.py` | **the gate** (spec §7.1/§7.2) — a full cloud agent run over the redacted thread |
 | `verify_0726.py` | **pure.** Checks a finished run against `bs-2pn`'s acceptance criteria |
 
-`lyric_offsets.py` and `lyric_consensus.py` are real implementations, not throwaways —
-they are the deterministic half, ready to promote into `src/email_agent/`.
+The deterministic half no longer lives here. `lyric_offsets.py` and
+`lyric_consensus.py` were promoted on 2026-08-02 to
+**`src/email_agent/lyrics/{offsets,consensus}.py`** and are pinned by
+`tests/test_lyric_repair.py` and `tests/test_lyric_pipeline.py`. Import them as
+`from email_agent.lyrics import ...`; the probes here do.
 
 ## Calling the local model
 
@@ -126,9 +127,16 @@ uv run python -u tests/probes/probe_gate.py --in-dir /tmp/gate --arm redacted \
 
 ## Caveat on all of the above
 
-None of this reproduces the actual 7/26 production failure. The cloud arm of
-`probe_filter.py` *passes*, while the real incident blocked 6/6 — and `bs-a1f`
-attempt 3 blocked on the first assistant turn after `get_thread` having written
-nothing at all. Those two observations conflict, so the real trigger is narrower
-than "lyrics are present" and has not been isolated. Build a fixture from the real
-thread before trusting that any fix works.
+**The trigger is still not isolated, and it is now clear it is not deterministic.**
+The cloud arm of `probe_filter.py` *passes*, while the real incident blocked 6/6 — and
+`bs-a1f` attempt 3 blocked on the first assistant turn after `get_thread` having
+written nothing at all.
+
+2026-08-02 added a third observation that does not fit either: a **redacted** thread —
+independently verified to contain 0 of 128 lyric lines — was blocked once and then
+cleared the filter on repeated runs of the same input. So "lyrics are present" is not
+the trigger, and neither is any other pure function of the text.
+
+The raw arm (§7.2) has **not** been run yet; the one 400 seen so far was on the
+redacted thread, which is the more surprising direction. Treat any single run, in
+either direction, as an anecdote — `probe_gate.py --repeat` exists for this.
