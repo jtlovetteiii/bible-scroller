@@ -1,5 +1,11 @@
 # Content-filter / copyright probes
 
+> **⚠ SHELVED 2026-08-02 along with the design they produced.** The content filter
+> was resolved by routing runs at a non-Anthropic endpoint (`AGENT_BASE_URL`) rather
+> than by changing the pipeline — see `specs/lyric-ingestion.md` for the full note.
+> These probes remain valid evidence and are worth re-reading before anyone
+> re-opens the question; they are not part of any live code path.
+
 > **The design these produced is written up in
 > [`specs/lyric-ingestion.md`](../../../specs/lyric-ingestion.md).** Read that first;
 > this file is the raw evidence behind it. Tracked as `bs-8qs`.

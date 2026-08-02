@@ -1,10 +1,26 @@
 # Spec: Mitigating Cloud Model Failures Due To Copyrighted Lyrics
 
-- **Status:** The gate (§7.1) has been run — **read it before planning work, it
-  changed what the question is** — and it surfaced a second lyric channel this design
-  does not close (§4.5, `bs-vhp`). The deterministic half now lives in
-  `agent/src/email_agent/lyrics/` with golden tests (§5); everything that talks to a
-  model or to Gmail is still unbuilt.
+> ## ⚠ SHELVED 2026-08-02 — the problem this solves was solved another way.
+>
+> Pointing the agent at a non-Anthropic endpoint (`AGENT_BASE_URL`, currently
+> Moonshot / `kimi-k3[1m]`) makes the content filter go away entirely, because the
+> filter is a property of the endpoint rather than of the model. That is a config
+> line; this is a pipeline. Verified end to end on 2026-08-02 and on a re-run of
+> the 7/26 thread. See `specs/email-agent.md` §8 and `.env.example`.
+>
+> **Nothing here is wired into the runtime** — nothing imports
+> `agent/src/email_agent/lyrics/`. It is kept, not deleted, because the measurement
+> work below is real and this is the fallback if the alternate backend becomes
+> unavailable or unaffordable. **Do not build on it without deciding to revive it
+> first**, and re-read §7.1 if you do: the gate is a *rate*, not a boolean.
+>
+> Still live regardless of which approach wins: **`bs-vhp`** (§4.5) — the
+> `service-report.json` leaks lyric text, a second channel neither design closes.
+
+- **Status:** SHELVED (see above). Historical status, as of 2026-08-02: the gate
+  (§7.1) had been run and had surfaced the second lyric channel in §4.5 (`bs-vhp`).
+  The deterministic half lives in `agent/src/email_agent/lyrics/` with golden tests
+  (§5); everything that talks to a model or to Gmail was never built.
 - **Date:** 2026-08-01 (gate results, §4.5 and the §5 promotion added 2026-08-02)
 - **Issue:** `bs-8qs` (carries the full experimental record)
 - **Related:** `bs-a1f` (the incident), `bs-e4m` (spike, closed), `bs-dox` (superseded

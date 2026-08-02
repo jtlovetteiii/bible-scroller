@@ -320,7 +320,8 @@ assumptions the design rests on — **all three confirmed** (`agent/spike/FINDIN
    `CLAUDE_CODE_OAUTH_TOKEN` (with `ANTHROPIC_API_KEY` unset). Caveat learned:
    `total_cost_usd` is *not* a billing signal; the subscription proof is
    `RateLimitEvent.rate_limit_type == 'five_hour'`. `ANTHROPIC_API_KEY` silently
-   outranks the OAuth token, so `config.assert_subscription_auth()` hard-fails on it.
+   outranks the OAuth token, so `config.assert_agent_auth()` hard-fails on it
+   (skipped when `AGENT_BASE_URL` routes the run away from Anthropic — see §8).
 2. A resumed session restores prior context across two **separate** process
    runs (`resume=session_id`, `session_id` from the init `SystemMessage`).
 3. `gen_service` **loads and runs** from `.claude/` inside an SDK query — but only
@@ -329,13 +330,33 @@ assumptions the design rests on — **all three confirmed** (`agent/spike/FINDIN
 Note: `AskUserQuestion` is a built-in SDK tool but does **not** apply here (no
 interactive user) — it would hang the run; reinforces the non-interactive design.
 
-**Failure mode found during eval runs (`bs-a1f`).** An agent whose job is
-reproducing hymn lyrics verbatim will occasionally have its output refused with
-`400 Output blocked by content filtering policy` (seen on an all-patriotic-hymns
-flowchart; nondeterministic, ~1 in 8 runs). This is *not* silence: the run ends
+**Failure mode found during eval runs (`bs-a1f`) — RESOLVED 2026-08-02.** An agent
+whose job is reproducing hymn lyrics verbatim will have its output refused with
+`400 Output blocked by content filtering policy` (first seen on an
+all-patriotic-hymns flowchart, ~1 in 8 runs; by 7/26 it was killing whole
+services, six failures across two threads). This is *not* silence: the run ends
 without a terminal tool call, which trips the harness's "decided nothing" guard →
 `AgentError` → the dispatcher's failure path (§7) marks the thread failed,
-releases the claim, and retries. Hardening tracked in `bs-a1f`.
+releases the claim, and retries — uselessly, since every attempt fails the same way.
+
+The filter is a property of the **endpoint, not the model**: lyrics merely being
+in context is enough to trip it, so no prompt or output shaping avoids it, and
+`fallback_model` cannot help (it swaps models *within* Anthropic's API). The fix
+is therefore configuration, not code — `AGENT_BASE_URL` points the agent's CLI
+subprocess at any Anthropic-compatible endpoint (currently Moonshot,
+`kimi-k3[1m]`). Unset, everything behaves exactly as before.
+
+Two consequences worth stating plainly. **Thread contents leave for a third party
+on every run** when this is set, which is a data-handling decision, not just a
+model choice — hence `agent_env()` blanking the subscription credentials rather
+than merely not setting them. And it costs pay-per-token, where the subscription
+did not.
+
+*Superseded by this:* `specs/lyric-ingestion.md` and the local-model/line-offset
+design (`bs-8qs`, `bs-2pn`) — extracting lyrics with a local model that emits only
+offsets, sliced by deterministic code so no lyric text reaches a cloud model.
+Shelved, not deleted, and **not wired into the runtime**; it is the fallback if
+the alternate backend ever becomes unavailable.
 
 ## 9. Sequencing
 

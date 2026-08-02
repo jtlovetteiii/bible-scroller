@@ -103,10 +103,20 @@ CLAUDE_CODE_OAUTH_TOKEN=<token>
 > **`ANTHROPIC_API_KEY` must be UNSET.** If present it *silently* outranks the
 > OAuth token and bills a pay-per-token API account instead of the subscription.
 > Nothing about the output looks different. There are three guards: the unit
-> scrubs it with `UnsetEnvironment=`, `config.assert_subscription_auth()` hard
+> scrubs it with `UnsetEnvironment=`, `config.assert_agent_auth()` hard
 > fails, and the installer **refuses to install if `.env` declares it** — because
 > `config.py` calls `load_dotenv()`, a key in `.env` would be re-injected *after*
 > systemd scrubbed it, and `UnsetEnvironment=` cannot prevent that.
+
+**Running against a non-Anthropic backend.** Set `AGENT_BASE_URL` (plus
+`AGENT_AUTH_TOKEN` and an `AGENT_MODEL` that endpoint recognises) and the agent's
+CLI subprocess is pointed there instead — this is how the copyrighted-lyric
+content filter is avoided, see `.env.example`. The billing guard above then does
+not apply and `assert_agent_auth()` skips it: nothing bills a subscription that
+is not being used. `agent_env()` blanks `CLAUDE_CODE_OAUTH_TOKEN` and
+`ANTHROPIC_API_KEY` in the child so a subscription credential can never reach a
+third-party endpoint, and `healthcheck` swaps its auth check for a reachability
+probe against the endpoint's `/v1/models`.
 
 ### 2. AWS — the profile you create in step 2
 
