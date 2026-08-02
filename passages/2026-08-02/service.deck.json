@@ -1,0 +1,94 @@
+{
+  "date": "2026-08-02",
+  "segments": [
+    {
+      "type": "preshow"
+    },
+    {
+      "type": "song",
+      "song": "the-lord-will-provide",
+      "background": "prelude.png",
+      "sections": [
+        "Verse 1",
+        "Chorus",
+        "Verse 2",
+        "Chorus",
+        "Bridge",
+        "Bridge",
+        "Chorus",
+        "Chorus (Ending)",
+        "Bridge (Ending)"
+      ]
+    },
+    {
+      "type": "welcome"
+    },
+    {
+      "type": "song",
+      "song": "one-day",
+      "sections": [
+        "Verse 1",
+        "Refrain",
+        "Verse 2",
+        "Refrain",
+        "Verse 3",
+        "Refrain",
+        "Verse 4",
+        "Refrain"
+      ]
+    },
+    {
+      "type": "song",
+      "song": "how-firm-a-foundation"
+    },
+    {
+      "type": "song",
+      "song": "all-hail-king-jesus",
+      "sections": [
+        "Verse 1",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Verse 3",
+        "Pre-Chorus 2",
+        "Chorus",
+        "Chorus",
+        "Bridge",
+        "Chorus"
+      ]
+    },
+    {
+      "type": "song",
+      "song": "goodness-of-god",
+      "sections": [
+        "Verse 1",
+        "Chorus 1",
+        "Verse 2",
+        "Chorus 2",
+        "Bridge",
+        "Bridge",
+        "Chorus 3",
+        "Chorus 4"
+      ]
+    },
+    {
+      "type": "sermon_transition"
+    },
+    {
+      "type": "song",
+      "song": "jesus-keep-me-near-the-cross",
+      "role": "invitation",
+      "sections": [
+        "Verse 1",
+        "Refrain",
+        "Verse 2",
+        "Refrain",
+        "Verse 3",
+        "Refrain"
+      ]
+    },
+    {
+      "type": "closing_prayer"
+    }
+  ]
+}
