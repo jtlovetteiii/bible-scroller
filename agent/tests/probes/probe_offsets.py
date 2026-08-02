@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(REPO_ROOT / ".env")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lyric_offsets import (  # noqa: E402
+from email_agent.lyrics import (  # noqa: E402
     SpecError,
     build_prompt,
     parse_spec,

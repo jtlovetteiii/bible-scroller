@@ -30,9 +30,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "probes"))
-
-from lyric_offsets import (  # noqa: E402
+from email_agent.lyrics import (  # noqa: E402
     Section,
     Song,
     SpecError,

@@ -1,9 +1,10 @@
 # Spec: Mitigating Cloud Model Failures Due To Copyrighted Lyrics
 
-- **Status:** Designed and measured; **nothing implemented in `agent/src/` yet.** The
-  gate (§7.1) has now been run — read it before planning work, it changed what the
-  question is — and it surfaced a second lyric channel the design does not close
-  (§4.5, `bs-vhp`).
+- **Status:** The gate (§7.1) has been run — **read it before planning work, it
+  changed what the question is** — and it surfaced a second lyric channel this design
+  does not close (§4.5, `bs-vhp`). The deterministic half now lives in
+  `agent/src/email_agent/lyrics/` with golden tests (§5); everything that talks to a
+  model or to Gmail is still unbuilt.
 - **Date:** 2026-08-01 (gate results and §4.5 added 2026-08-02)
 - **Issue:** `bs-8qs` (carries the full experimental record)
 - **Related:** `bs-a1f` (the incident), `bs-e4m` (spike, closed), `bs-dox` (superseded
@@ -332,12 +333,26 @@ Nothing below exists in `agent/src/` yet.
 | 7 | Fail-closed path | local model unreachable ⇒ `bs-9ed` apology, **never** pass through raw |
 | 8 | Healthcheck probe | `bs-7sb`, now more important: this is on the critical path |
 
-**Promotable today:** `agent/tests/probes/lyric_offsets.py` and `lyric_consensus.py`
+**Done 2026-08-02 (`bs-2pn`).** The deterministic half is now
+`agent/src/email_agent/lyrics/` (`offsets.py`, `consensus.py`), pinned by
+`tests/test_lyric_repair.py` (the repair invariant, 20k adversarial specs) and
+`tests/test_lyric_pipeline.py` (a golden run over the real 7/26 email). The golden
+test freezes five real model specs into `tests/fixtures/specs_0726.json` so it is
+deterministic and network-free — and that fixture contains **zero lyric characters**,
+which is the design's central claim turned into an assertion.
+
+Items 1, 2, 4, 5, 6, 7 and 8 remain unbuilt.
+
+<details><summary>The original note, for context</summary>
+
+`agent/tests/probes/lyric_offsets.py` and `lyric_consensus.py`
 are pure, self-tested implementations of the deterministic half — numbering, prompt,
 parsing, validation, slicing, redaction, consensus. Move them to `src/email_agent/`
 and pin them with golden tests, exactly as `build-deck.js` is pinned by
 `tests/build-deck.test.js`. The self-test already covers 41/41 verbatim lines, 3/3
 caesuras, zero prose lost, and rejection of all five malformed-spec classes.
+
+</details>
 
 ---
 

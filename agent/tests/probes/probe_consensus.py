@@ -27,8 +27,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(REPO_ROOT / ".env")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lyric_consensus import consensus  # noqa: E402
-from lyric_offsets import (  # noqa: E402
+from email_agent.lyrics import consensus  # noqa: E402
+from email_agent.lyrics import (  # noqa: E402
     Section,
     Song,
     SpecError,
@@ -284,6 +284,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    from lyric_offsets import Song  # noqa: F401,E402  — for the annotation above
+    from email_agent.lyrics import Song  # noqa: F401,E402  — for the annotation above
 
     sys.exit(main())

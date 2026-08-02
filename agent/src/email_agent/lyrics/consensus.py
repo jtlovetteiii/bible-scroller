@@ -34,7 +34,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-from lyric_offsets import Section, Song
+from .offsets import Section, Song
 
 _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
 _WS = re.compile(r"\s+")
