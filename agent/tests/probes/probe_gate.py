@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import shutil
 import sys
 import tempfile
@@ -42,16 +43,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "eval"))
 
 import fixture_0726  # noqa: E402
 from eval_harness import _stage, run_gen_service, seed_library  # noqa: E402
+from verify_0726 import verify  # noqa: E402
 
 TODAY = "2026-07-22"  # the Wednesday before the 7/26 service
 DATE = "2026-07-26"
 
 
 async def run_arm(name: str, flowchart: str, songs_dir: Path | None,
-                  dump: Path | None = None) -> dict:
-    """One full agent run. Returns what we need to judge the gate."""
-    with tempfile.TemporaryDirectory() as tmp:
-        ws = _stage(Path(tmp))
+                  dump: Path | None = None, keep: Path | None = None) -> dict:
+    """One full agent run. Returns what we need to judge the gate.
+
+    `keep` retains the workspace instead of deleting it, so the run can be checked
+    against bs-2pn's acceptance criteria afterwards (verify_0726.py). Without it the
+    only evidence a run leaves is whether it 400'd, which is not enough to call an
+    eval green.
+    """
+    with contextlib.ExitStack() as stack:
+        if keep:
+            keep.mkdir(parents=True, exist_ok=True)
+            root = keep
+        else:
+            root = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        ws = _stage(root)
         # Strip the library to nothing, then seed only what this arm should start
         # with. The raw arm starts with NO songs (as production did on the day);
         # the redacted arm starts with the six the ingest step already extracted.
@@ -88,7 +101,13 @@ async def run_arm(name: str, flowchart: str, songs_dir: Path | None,
             "replied": bool(run.replies),
             "built_deck": run.built_a_deck(DATE),
             "songs_after": sorted(f.stem for f in (ws / "songs").glob("*.md")),
+            "workspace": str(ws) if keep else None,
         }
+        if keep:
+            res = verify(ws, reply=run.reply if run.replies else None)
+            print(f"\nacceptance criteria (bs-2pn):\n{res.report()}")
+            result["criteria_ok"] = res.ok
+            result["criteria_failed"] = res.failed
         print(f"content-filter error : {err or 'NONE'}")
         print(f"replied              : {result['replied']}")
         print(f"built a deck         : {result['built_deck']}")
@@ -107,6 +126,9 @@ async def main() -> int:
                     help="repeatable; default is all three")
     ap.add_argument("--dump-dir", type=Path, default=None,
                     help="write each arm's assistant transcript here")
+    ap.add_argument("--keep-workspaces", type=Path, default=None,
+                    help="retain each run's workspace here and check it against "
+                         "bs-2pn's acceptance criteria")
     ap.add_argument("--repeat", type=int, default=1,
                     help="run each arm this many times and report a PASS RATE. The "
                          "filter is not a deterministic function of the input — the "
@@ -130,6 +152,9 @@ async def main() -> int:
 
     arms = args.arm or ["redacted", "redacted-noseed", "raw"]
 
+    def keep_for(slug: str) -> Path | None:
+        return args.keep_workspaces / slug if args.keep_workspaces else None
+
     def dump_for(slug: str) -> Path | None:
         if not args.dump_dir:
             return None
@@ -142,7 +167,8 @@ async def main() -> int:
         if "redacted" in arms:
             results.append(await run_arm(
                 f"REDACTED ARM (§7.1) — the gate{tag}",
-                thread(redacted), songs_dir, dump_for(f"redacted-{trial + 1}")))
+                thread(redacted), songs_dir, dump_for(f"redacted-{trial + 1}"),
+                keep_for(f"redacted-{trial + 1}")))
         if "raw" in arms:
             results.append(await run_arm(
                 f"RAW ARM (§7.2) — reproduction attempt{tag}",
