@@ -1,7 +1,10 @@
 # Spec: Mitigating Cloud Model Failures Due To Copyrighted Lyrics
 
-- **Status:** Designed and measured; **nothing implemented in `agent/src/` yet.**
-- **Date:** 2026-08-01
+- **Status:** Designed and measured; **nothing implemented in `agent/src/` yet.** The
+  gate (§7.1) has now been run — read it before planning work, it changed what the
+  question is — and it surfaced a second lyric channel the design does not close
+  (§4.5, `bs-vhp`).
+- **Date:** 2026-08-01 (gate results and §4.5 added 2026-08-02)
 - **Issue:** `bs-8qs` (carries the full experimental record)
 - **Related:** `bs-a1f` (the incident), `bs-e4m` (spike, closed), `bs-dox` (superseded
   approach), `bs-zzq`, `bs-7sb`, `bs-fsx`, `bs-752`
@@ -282,6 +285,38 @@ Everything stays sliceable and the model still emits only integers. Not built.
 
 ---
 
+### 4.5 The channel this design misses: the build report — `bs-vhp`
+
+§4.3 checked that the deck JSON carries no lyric text. That is true, and it is not
+the whole picture: **`scripts/build-deck.js` writes `service-report.json`, and the
+report quotes lyric lines back at the model.** Measured on the real six 7/26 songs,
+**53 of 127 distinct copyrighted lines appear in it verbatim** (and 112/127 in
+`service-preview.html`). They arrive two ways:
+
+- `report.typography` lists, per song, the exact lines that will not fit;
+- `report.warnings` quotes the worst offender in prose — *`One Day: 5 line(s) will
+  WRAP MID-PHRASE … Worst: "One day when heaven was filled with His praises,"`*.
+
+This is not incidental: the model is *told* to read it. `gen_service.md` step 5 says
+"Summarize from the report", and its typography rule says to act on those warnings by
+adding a caesura to `songs/<slug>.md` — i.e. to open a file of copyrighted lyrics and
+rewrite a lyric line. The 2026-08-01 passing run did exactly that ("added caesura
+markers throughout").
+
+So the redaction chokepoint at `extract_body` closes **email → model**. This channel
+runs **tool → model** and is wide open. Until it is closed, *"never route verbatim
+lyric text through a cloud model, in either direction"* is not a true description of
+the pipeline, even with `ingest_thread` built exactly as §5 specifies.
+
+The fix has an easy half and a hard half. Easy: report typography by section name and
+line index, never by text — the deterministic renderer already owns the text and the
+model never needs it. Hard: the caesura loop genuinely asks the model to edit lyric
+lines. Either move caesura insertion into `build-deck.js` (it has the metrics, and
+sense-breaks are largely inferable from punctuation), or express it as an offset edit,
+the way ingestion already expresses extraction.
+
+---
+
 ## 5. Components to build
 
 Nothing below exists in `agent/src/` yet.
@@ -329,6 +364,26 @@ Log the vote counts per line. When N is reduced, the near-miss lines
 
 ### 7.1 The gate — does the *redacted* thread clear the filter?
 
+> **RUN 2026-08-01 (`bs-2pn`). Result: the question is malformed as posed.** The
+> redacted thread was put through a full cloud agent run twice. The first died on
+> `400 Output blocked by content filtering policy` having written nothing; the second
+> cleared the filter, built a 76-slide deck and replied naming all six songs.
+> **The filter is not a deterministic function of the input**, so neither a 400 nor a
+> green run settles anything on its own — use `probe_gate.py --repeat` and read the
+> *rate*. (Caveat: those two runs were not a clean A/B — the second also used the
+> improved redaction, so variance and input quality are confounded.)
+>
+> Two things the passing run exposed, both worth more than the pass itself:
+>
+> 1. **The redaction is verifiably clean and it is still not enough.** 0 of 128
+>    distinct lyric lines survive in the redacted thread (exact-line *and* substring),
+>    and 212/212 lines in `songs/*.md` are byte-exact slices — yet ~50 lyric lines
+>    reach the model anyway, through `service-report.json`. See §4.5 and `bs-vhp`.
+> 2. **The model narrates the redaction to the minister as a fault.** It wrote that
+>    the email "didn't actually contain any lyrics … which is an unusual way for that
+>    to happen". The `[LYRICS: …]` line has to explain itself, or the system prompt
+>    has to say this is normal, or every reply carries a spurious apology.
+
 **This is the one that should gate implementation**, and it does not depend on
 reproducing the original failure.
 
@@ -354,6 +409,35 @@ may not reproduce; the incident was days earlier and filter behaviour may have m
 A negative result is informative, not a blocker.
 
 ### 7.3 Consensus against a real email
+
+> **RUN 2026-08-01 (`bs-2pn`). The §4.2 numbers did not survive contact.** Pointed at
+> the real 262-line reply, **0 of 7 runs produced a spec `validate_spec` would accept**
+> — against 6/7 on the synthetic. The pipeline failed closed on the one email it was
+> built for.
+>
+> Every rejection was the same mechanical error: the `end` of a song's last section
+> ran long, into the next song's first line (5/7, always line 77) or past EOF (2/7).
+> The songs, titles and bulk of the ranges were right in every run. Four fixes, each
+> measured, now in `tests/probes/`:
+>
+> | change | effect |
+> |---|---|
+> | prompt states the end-boundary rule explicitly | 0/7 → 2/5 valid |
+> | `repair_spec` repairs rather than bins a spec | 2/5 → **7/7 usable** |
+> | consensus splits *"is it a lyric?"* (union) from *"whose is it?"* (per-line majority) | stops one over-long range swallowing a whole song |
+> | blank lines are never claimed | restores stanza structure |
+>
+> Final on the real email: **K≥1 … K≥3 all leak 0**, 212/212 verbatim, six songs,
+> correct titles, correct stanza structure. Two numbers to carry forward:
+>
+> - **~40s per call, not 6.3s.** That figure was measured on the small synthetic; the
+>   real email is 262 lines. N=7 is ~4 minutes of preprocessing, which is why
+>   `LOCAL_LLM_TIMEOUT_SECONDS` must be separate from the agent budget (§6).
+> - **Over-claimed prose lands *inside* a song file**, not merely "destroyed". The
+>   swallowed `ONE DAY lyrics:` label became a section of `the-lord-will-provide.md`,
+>   i.e. a line that would have gone on the wall. §4.2 undersells this cost. The
+>   frontier model did notice and strip it, but relying on that is relying on the
+>   thing this design exists to avoid depending on.
 
 §4.2's numbers come from a synthetic hostile fixture. Re-run `probe_consensus.py`
 against the real 7/26 text, which has exactly the awkward shape this is meant to
@@ -387,8 +471,14 @@ Follows the existing pattern: deciding *nothing* is an error (`harness.py:237`,
 
 ## 9. Open questions
 
-1. **Does the redacted thread clear the filter?** §7.1. Everything else is downstream
-   of this.
+1. ~~**Does the redacted thread clear the filter?**~~ **Answered, partly, 2026-08-01.**
+   Sometimes. It both 400'd and built a complete deck on the same fixture, so the
+   filter is not a pure function of the input and the real question is now *at what
+   rate*, measured with `probe_gate.py --repeat`. Until that rate is known, no claim
+   about safety should be made from a green run. See §7.1.
+1a. **Can the tool → model channel be closed?** `bs-vhp`, §4.5. Newly found and
+   arguably now the binding constraint: the build report hands the model ~50
+   copyrighted lyric lines regardless of how clean the email is.
 2. **Would a better quant collapse N to 1–2?** §3.1. Cheapest available win; the
    config in §6 exists so this can be answered by measurement rather than redesign.
 3. **Mixed lines** — build the `start_col` trims (§4.4), or accept the prose cost and
