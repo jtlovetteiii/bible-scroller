@@ -264,6 +264,9 @@ def main() -> int:
         print(f"\nmerge repairs ({len(repairs)}): " + "; ".join(str(r) for r in repairs[:4]))
     print(f"\ntitles @K={args.line_threshold}: {[s.title for s in rep.songs]}")
     print(f"title votes: {rep.title_votes}")
+    if rep.low_confidence:
+        print(f"low-confidence claimed lines (over-claim candidates): "
+              f"{[(ln, f'{v}/{n}') for ln, v, n in rep.low_confidence][:12]}")
     if rep.below_threshold:
         print(f"dropped below threshold (near-misses): {rep.below_threshold}")
 

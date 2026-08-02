@@ -32,7 +32,7 @@ from __future__ import annotations
 import collections
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lyric_offsets import Section, Song
 
@@ -74,6 +74,19 @@ class ConsensusReport:
     below_threshold: list[int]
     #: title -> vote count, per slug. Surfaces disagreement about what a song IS.
     title_votes: dict[str, dict[str, int]]
+    #: Claimed lines a MINORITY of specs agreed on, as (line, votes, total) — the
+    #: over-claim candidates, so the reply can say "check these" without quoting the
+    #: line, which is what §4.2 asks for and the tool otherwise cannot express.
+    #:
+    #: MEASURED on the real 7/26 email (5 specs): recall 4/5, precision 4/5. It flags
+    #: four of the five swallowed "<Song> lyrics:" labels, misses one, and falsely
+    #: flags one genuine lyric ('Singing "Holy", singing "Holy"' — a real line that
+    #: only some runs claimed).
+    #:
+    #: DIAGNOSTIC ONLY. Nothing is dropped on the strength of it, and at 4/5 precision
+    #: nothing should be: dropping un-claims a line, which is the leak direction, and
+    #: a genuine one-line stanza is indistinguishable from a swallowed label here.
+    low_confidence: list[tuple[int, int, int]] = field(default_factory=list)
 
 
 def _runs(sorted_lines: list[int]) -> list[tuple[int, int]]:
@@ -203,6 +216,18 @@ def consensus(
     songs.sort(key=lambda s: s.first_line)
 
     below = sorted(ln for ln, c in line_votes.items() if 0 < c < line_threshold)
+
+    # Over-claim candidates: a claimed line that a MINORITY of specs voted for. Scored
+    # against the number of specs that saw the owning song, not the total, so a song
+    # only two runs found is not judged as if all seven had disagreed about it.
+    low: list[tuple[int, int, int]] = []
+    for key, owned in lines_owned.items():
+        seen = slug_votes[key]
+        for ln in owned:
+            v = lines_by_slug[key].get(ln, 0)
+            if seen > 1 and v * 2 <= seen:
+                low.append((ln, v, seen))
+    low.sort()
     return ConsensusReport(
         songs=songs,
         valid_specs=total,
@@ -210,4 +235,5 @@ def consensus(
         votes=dict(line_votes),
         below_threshold=below,
         title_votes={k: dict(v) for k, v in titles_by_slug.items()},
+        low_confidence=low,
     )
