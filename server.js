@@ -16,11 +16,25 @@ try {
 }
 
 const PORT = process.env.PORT || config.port;
+// Loopback only by default. Set HOST=0.0.0.0 (or "host" in config.json) to
+// reach the app from another device, e.g. a tablet on the church network.
+const HOST = process.env.HOST || config.host || '127.0.0.1';
 const PASSAGES_DIR = process.env.PASSAGES_DIR || config.passagesDir;
 
 // Middleware
 app.use(express.json());
-app.use(express.static('.'));
+
+// Serve only what the browser needs. The repo root also holds the email
+// agent's OAuth token and credentials, so it must never be served wholesale.
+for (const file of ['index.html', 'app.js', 'style.css']) {
+  app.get(`/${file}`, (req, res) => res.sendFile(path.join(__dirname, file)));
+}
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
+// Media images and generated slide previews (scripts/build-deck.js writes
+// previews to ./passages/<date>/, and they load backgrounds from /templates/)
+app.use('/passages', express.static(path.join(__dirname, 'passages')));
+app.use('/templates', express.static(path.join(__dirname, 'templates')));
 
 // API: List all passage files
 app.get('/api/passages', async (req, res) => {
@@ -98,7 +112,10 @@ app.post('/api/passages/:filename', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Scripture Scroller server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Scripture Scroller server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
+    console.log(`Listening on ${HOST}: reachable from other devices on the network`);
+  }
   console.log(`Passages directory: ${path.resolve(PASSAGES_DIR)}`);
 });

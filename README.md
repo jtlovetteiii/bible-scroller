@@ -194,9 +194,12 @@ Edit `config.json` to customize:
 ```json
 {
   "passagesDir": "./passages",  // Path to passage files
-  "port": 3000                  // Server port
+  "port": 3000,                 // Server port
+  "host": "127.0.0.1"           // Optional; see below
 }
 ```
+
+The server listens on `127.0.0.1` (this computer only) by default. To open the app from another device, such as a tablet on the church network, set `"host": "0.0.0.0"` or start it with `HOST=0.0.0.0 npm start`. The server serves only the app's own files, `fonts/`, `passages/` and `templates/`, never the rest of the repo (which holds the email agent's credentials). Passage files can be saved without authentication, so only open it up on a network you trust.
 
 The simplicity of this approach makes it easy to use with file sync tools like OneDrive sync. For example, you could point `passagesDir` to your OneDrive folder to sync your setup between the computer where you prepare sermon outlines and the computer where you present them to an audience:
 ```json
