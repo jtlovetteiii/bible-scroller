@@ -554,95 +554,160 @@ function toggleTheme() {
 
 // Toggle presentation mode between scripture and media
 function togglePresentationMode() {
-    console.log('togglePresentationMode called. media.length:', media.length);
-    console.log('media array:', media);
-    console.log('presentationMode:', presentationMode);
-
     if (media.length === 0) {
         // No media available, can't switch to media mode
-        console.log('No media available, cannot switch to media mode');
         return;
     }
 
     if (presentationMode === 'scripture') {
-        // Switch to media mode
-        console.log('Switching to media mode');
         presentationMode = 'media';
         showMediaMode();
     } else {
-        // Switch back to scripture mode
-        console.log('Switching to scripture mode');
         presentationMode = 'scripture';
         showScriptureMode();
     }
 }
 
-// Show media mode (fade in current media item)
+// Scripture <-> media transitions ("Settle")
+// =========================================
+// The outgoing layer clears before the incoming one arrives, so a slide title
+// never sits on top of scripture text: the text lifts and fades, then the
+// slide settles in from a slight zoom (and the reverse on the way back).
+// Built on the Web Animations API so a transition can be interrupted (M
+// pressed again mid-way) and the next one starts from what is on screen.
+const TEXT_OUT_MS = 450;
+const SLIDE_IN_MS = 1100;
+const SLIDE_OUT_MS = 550;
+const TEXT_IN_MS = 900;
+const EASE_LEAVE = 'cubic-bezier(.4, 0, 1, 1)';
+const EASE_ARRIVE = 'cubic-bezier(.16, .84, .3, 1)';
+// Resting states of the hidden layers, so the next transition starts from them
+const TEXT_HIDDEN_TRANSFORM = 'translateY(2vh)';
+const SLIDE_HIDDEN_TRANSFORM = 'scale(1.04)';
+
+let modeAnimations = [];
+
+// Freeze any in-flight mode transition where it is
+function settleModeAnimations() {
+    modeAnimations.forEach(animation => {
+        try {
+            animation.commitStyles();
+        } catch (e) {
+            // Element isn't rendered (display: none); nothing to keep
+        }
+        animation.cancel();
+    });
+    modeAnimations = [];
+}
+
+// Run [element, keyframes, options] steps together, then call onDone unless a
+// newer transition has taken over. Keyframes give only the end state; each
+// animation starts from the element's current look.
+function runModeTransition(steps, onDone) {
+    const animations = steps.map(([element, keyframes, options]) =>
+        element.animate(keyframes, { fill: 'both', ...options })
+    );
+    modeAnimations = animations;
+
+    Promise.all(animations.map(animation => animation.finished))
+        .then(() => {
+            if (modeAnimations !== animations) return;
+            settleModeAnimations();
+            onDone();
+        })
+        .catch(() => {
+            // Cancelled by a newer transition
+        });
+}
+
+function visibleOpacity(element) {
+    return element.style.display === 'none' ? 0 : parseFloat(getComputedStyle(element).opacity);
+}
+
+// Show media mode (text lifts away, then the slide settles in)
 function showMediaMode() {
     const versesContainer = document.getElementById('verses-container');
     const mediaContainer = document.getElementById('media-container');
-    const stickyRef = document.getElementById('sticky-reference');
-    const scrollGradient = document.getElementById('scroll-gradient');
+
+    stopScrollLoop();
+    releaseScrollKeys();
+    settleModeAnimations();
 
     // Hide sticky reference and scroll gradient if visible
-    stickyRef.classList.add('hidden');
-    scrollGradient.classList.add('hidden');
+    document.getElementById('sticky-reference').classList.add('hidden');
+    document.getElementById('scroll-gradient').classList.add('hidden');
 
-    // Show media container and render current media item
     mediaContainer.style.display = 'flex';
     renderCurrentMedia();
 
-    // Start crossfade: fade out verses and fade in media simultaneously
-    setTimeout(() => {
-        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
-        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
+    // Wait only as long as the text actually takes to clear
+    const textDelay = TEXT_OUT_MS * visibleOpacity(versesContainer);
 
-        versesContainer.style.opacity = '0';
-        mediaContainer.style.opacity = '1';
-
-        // After transition completes, hide verses container and clear styles
-        setTimeout(() => {
-            versesContainer.style.display = 'none';
-            versesContainer.style.opacity = '';
-            versesContainer.style.transition = '';
-            mediaContainer.style.transition = '';
-        }, 1200);
-    }, 50);
+    runModeTransition([
+        [versesContainer, [{ opacity: 0, transform: 'translateY(-2vh)' }], { duration: TEXT_OUT_MS, easing: EASE_LEAVE }],
+        [mediaContainer, [{ opacity: 1, transform: 'scale(1)' }], { duration: SLIDE_IN_MS, delay: textDelay, easing: EASE_ARRIVE }]
+    ], () => {
+        versesContainer.style.display = 'none';
+        versesContainer.style.transform = TEXT_HIDDEN_TRANSFORM;
+    });
 }
 
-// Show scripture mode (fade back to verses)
+// Show scripture mode (slide clears, then the text rises into place)
 function showScriptureMode() {
     const versesContainer = document.getElementById('verses-container');
     const mediaContainer = document.getElementById('media-container');
 
-    // Show verses container and prepare for crossfade
+    settleModeAnimations();
+
     versesContainer.style.display = 'block';
 
-    // Scroll to the current verse immediately (before fade begins)
+    // Scroll to the current verse immediately (before the text appears)
     scrollToVerse(currentIndex, true);
 
-    // Start crossfade: fade out media and fade in verses simultaneously
-    setTimeout(() => {
-        versesContainer.style.transition = 'opacity 1.2s ease-in-out';
-        mediaContainer.style.transition = 'opacity 1.2s ease-in-out';
+    const slideDelay = SLIDE_OUT_MS * visibleOpacity(mediaContainer);
 
-        mediaContainer.style.opacity = '0';
-        // Only set opacity to 1 if not blanked
-        if (!isBlanked) {
-            versesContainer.style.opacity = '1';
-        } else {
-            versesContainer.style.opacity = '0.05';
-        }
+    runModeTransition([
+        [mediaContainer, [{ opacity: 0, transform: 'scale(1.02)' }], { duration: SLIDE_OUT_MS, easing: EASE_LEAVE }],
+        [versesContainer, [{ opacity: isBlanked ? 0.05 : 1, transform: 'translateY(0)' }], { duration: TEXT_IN_MS, delay: slideDelay, easing: EASE_ARRIVE }]
+    ], () => {
+        mediaContainer.style.display = 'none';
+        mediaContainer.style.transform = SLIDE_HIDDEN_TRANSFORM;
+        // Clear inline styles to let CSS classes (like .blanked) control the text
+        versesContainer.style.opacity = '';
+        versesContainer.style.transform = '';
+    });
+}
 
-        // After transition completes, hide media container and clear inline styles
-        setTimeout(() => {
-            mediaContainer.style.display = 'none';
-            // Clear inline opacity to let CSS classes (like .blanked) control it
-            versesContainer.style.opacity = '';
-            versesContainer.style.transition = '';
-            mediaContainer.style.transition = '';
-        }, 1200);
-    }, 50);
+// Put both layers back in their scripture-mode resting state, no animation
+function resetModeLayers() {
+    settleModeAnimations();
+    const versesContainer = document.getElementById('verses-container');
+    const mediaContainer = document.getElementById('media-container');
+    versesContainer.style.display = 'block';
+    versesContainer.style.opacity = '';
+    versesContainer.style.transform = '';
+    mediaContainer.style.display = 'none';
+    mediaContainer.style.opacity = '';
+    mediaContainer.style.transform = '';
+}
+
+// Decode every slide up front so no transition waits on an image load
+let preloadedMedia = [];
+function preloadMedia() {
+    preloadedMedia = media.map(item => {
+        const img = new Image();
+        img.src = `passages/${item.src}`;
+        img.decode().catch(() => console.error('Failed to load image:', img.src));
+        return img;
+    });
+}
+
+function createMediaImage(item) {
+    const img = document.createElement('img');
+    img.src = `passages/${item.src}`;
+    img.alt = item.alt || '';
+    img.className = 'media-image active';
+    return img;
 }
 
 // Render the current media item
@@ -654,69 +719,45 @@ function renderCurrentMedia() {
         return;
     }
 
-    const mediaItem = media[currentMediaIndex];
-    const img = document.createElement('img');
-    img.src = `passages/${mediaItem.src}`;
-    img.alt = mediaItem.alt || '';
-    img.className = 'media-image active';
-
     mediaContainer.innerHTML = '';
-    mediaContainer.appendChild(img);
+    mediaContainer.appendChild(createMediaImage(media[currentMediaIndex]));
 }
 
-// Fade transition between media items (crossfade)
+// Crossfade to the current media item. Kept a plain crossfade on purpose:
+// consecutive slides usually share a background and differ by one line of
+// text, so only the new line visibly changes.
+let mediaFadeRequest = 0;
 function fadeToNextMedia() {
     const mediaContainer = document.getElementById('media-container');
-    const currentImg = mediaContainer.querySelector('.media-image.active');
 
-    if (!currentImg) {
-        // No current image, just render the new one
+    if (!mediaContainer.querySelector('.media-image')) {
         renderCurrentMedia();
         return;
     }
 
-    // Create the new image
-    const mediaItem = media[currentMediaIndex];
-    const newImg = document.createElement('img');
-    newImg.src = `passages/${mediaItem.src}`;
-    newImg.alt = mediaItem.alt || '';
-    newImg.className = 'media-image';
+    const request = ++mediaFadeRequest;
+    const newImg = createMediaImage(media[currentMediaIndex]);
 
-    // Set initial style to be invisible but on top
-    newImg.style.opacity = '0';
-    newImg.style.zIndex = '2';
+    const show = () => {
+        // A later key press already moved on; skip this slide
+        if (request !== mediaFadeRequest) return;
 
-    // Keep old image visible underneath
-    currentImg.style.zIndex = '1';
-
-    // Wait for the image to load before starting the crossfade
-    newImg.onload = () => {
-        // Add new image to container (it starts at opacity 0 on top)
         mediaContainer.appendChild(newImg);
-
-        // Trigger fade-in of new image (old image stays at opacity 1 underneath)
-        setTimeout(() => {
-            newImg.style.transition = 'opacity 0.6s ease-in-out';
-            newImg.style.opacity = '1';
-
-            // Remove old image after transition completes
-            setTimeout(() => {
-                currentImg.remove();
-                // Clean up inline styles and add active class
-                newImg.style.opacity = '';
-                newImg.style.zIndex = '';
-                newImg.style.transition = '';
-                newImg.classList.add('active');
-            }, 600);
-        }, 50);
+        newImg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, easing: 'ease-in-out' })
+            .finished
+            .then(() => {
+                // Drop the slides now hidden underneath
+                while (newImg.previousElementSibling) {
+                    newImg.previousElementSibling.remove();
+                }
+            })
+            .catch(() => {});
     };
 
-    // Handle load errors gracefully
-    newImg.onerror = () => {
+    newImg.decode().then(show, () => {
         console.error('Failed to load image:', newImg.src);
-        // Fall back to just showing the new image
-        renderCurrentMedia();
-    };
+        show();
+    });
 }
 
 // Update mode indicator UI
@@ -1088,11 +1129,8 @@ async function loadPassageFile(filename) {
         presentationMode = 'scripture';
 
         // Make sure we're showing scripture mode.
-        const versesContainer = document.getElementById('verses-container');
-        const mediaContainer = document.getElementById('media-container')
-        versesContainer.style.display = 'block';
-        versesContainer.style.opacity = '' // Clear inline styles to let CSS take over.
-        mediaContainer.style.display = 'none';
+        resetModeLayers();
+        preloadMedia();
 
         renderVerses();
         scrollToVerse(0, true);

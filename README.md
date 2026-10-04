@@ -20,7 +20,7 @@ Instead of advancing slide-by-slide, the operator presses **Space** to jump betw
 | **Intelligent scrolling** | ✅ Implemented | Automatically detects when passages are too long for the viewport and scrolls progressively through them. |
 | **Sticky reference header** | ✅ Implemented | Verse reference stays visible at the top when scrolling within a passage, providing context. |
 | **Gradient fade effect** | ✅ Implemented | Text naturally fades as it scrolls toward the top, guiding eyes to new content. |
-| **Media mode** | ✅ Implemented | Toggle to display slides/images alongside Scripture. Press **M** to switch between Scripture and media presentations with smooth crossfade transitions. |
+| **Media mode** | ✅ Implemented | Toggle to display slides/images alongside Scripture. Press **M** to switch between Scripture and media presentations: the text lifts away, then the slide settles in (and the reverse on the way back). |
 | **Bookmark mode** | ✅ Implemented | Press **B** to gracefully fade content for sermon pauses (like placing a bookmark in a Bible). |
 | **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
 | **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
@@ -122,7 +122,7 @@ scripture-scroller/
 | **→** | Jump down incrementally within current passage (instant, no smooth scroll - ideal for low-performance PCs) |
 | **↓** | Smooth scroll down within passage (Scripture mode) OR advance to next media slide (Media mode) |
 | **↑** | Smooth scroll up within passage (Scripture mode) OR go back to previous media slide (Media mode) |
-| **M** | Toggle between Scripture mode and Media mode (smooth crossfade transition) |
+| **M** | Toggle between Scripture mode and Media mode (sequenced "settle" transition) |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
 | **T** | Toggle light/dark theme |
 | **F** | Open file browser to load/manage passage files |
@@ -386,8 +386,8 @@ what limits the damage — worst case on a leak is read/write of slide media.
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
 - **Animations:**
   - One `requestAnimationFrame` scroll engine: hold-to-scroll eases in and out of reading pace and glides to a stop at passage edges; passage-to-passage transitions are eased tweens whose duration scales with distance (tunables at the top of `app.js`)
-  - CSS transitions for crossfade effects (1.2s duration)
-- **Media Support:** Full-screen image display with crossfade transitions between Scripture and Media modes
+  - Web Animations API for the Scripture/media "settle" transition (interruptible; timings at the top of the transition section in `app.js`)
+- **Media Support:** Full-screen image display, preloaded on file load; crossfades between slides (build-up slides share a background, so only the new line changes)
 - **Data Source:** JSON files loaded via REST API, auto-saved on edit, supports both Scripture-only and Scripture+Media formats
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
 - **Typography:** [Libron](https://github.com/nicoverbruggen/libron) (OFL, bundled in `fonts/` for offline use; Georgia fallback), 4rem size, ragged-right text

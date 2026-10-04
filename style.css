@@ -123,8 +123,9 @@ body.light-theme::after {
     align-items: center;
     justify-content: center;
     background-color: #1a1a1a;
+    /* Hidden resting state; app.js animates it in ("Settle" transition) */
     opacity: 0;
-    transition: opacity 0.6s ease-in-out;
+    transform: scale(1.04);
     z-index: 10;
 }
 
