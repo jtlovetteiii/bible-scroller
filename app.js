@@ -31,12 +31,14 @@ let currentMode = 'normal'; // Track current mode: 'normal', 'edit', 'style'
 let currentFileName = null; // Track currently loaded file
 let isFileBrowserOpen = false; // Track file browser state
 
-// Hold-to-scroll state
-let isScrollingDown = false;
-let isScrollingUp = false;
-let scrollAnimationFrame = null;
-let lastScrollTimestamp = null;
-const SCROLL_SPEED = 350; // pixels per second (reading pace)
+// Scroll engine tuning
+const SCROLL_SPEED = 350;        // hold-to-scroll reading pace, pixels per second
+const SCROLL_RAMP = 0.09;        // seconds; time constant for easing into/out of the reading pace
+const SCROLL_BRAKE_DISTANCE = 60; // pixels over which hold-to-scroll glides to a stop at a passage edge
+const PASSAGE_EDGE_MARGIN = 50;  // pixels of slack at a passage's top/bottom edge
+const TRANSITION_MIN_MS = 700;   // Space: shortest passage-to-passage transition
+const TRANSITION_MAX_MS = 1400;  // Space: longest passage-to-passage transition
+const TRANSITION_MS_PER_PX = 0.5;
 
 // Render all verses to the DOM
 function renderVerses() {
@@ -86,6 +88,7 @@ function init() {
     // Set up keyboard navigation
     document.addEventListener('keydown', handleKeyPress);
     document.addEventListener('keyup', handleKeyRelease);
+    window.addEventListener('blur', releaseScrollKeys);
 
     // Set up file browser
     initFileBrowser();
@@ -138,7 +141,7 @@ function handleKeyPress(event) {
                 jumpToNextPassage();
             } else {
                 // In scripture mode: start continuous scroll (hold to scroll)
-                if (!isScrollingDown) {
+                if (!scroller.heldDown) {
                     startScrollDown();
                 }
             }
@@ -149,7 +152,7 @@ function handleKeyPress(event) {
                 navigatePrevious();
             } else {
                 // In scripture mode: start continuous scroll up (hold to scroll)
-                if (!isScrollingUp) {
+                if (!scroller.heldUp) {
                     startScrollUp();
                 }
             }
@@ -227,142 +230,198 @@ function navigatePrevious() {
     }
 }
 
-// Start continuous scroll down (hold Down arrow)
-function startScrollDown() {
-    isScrollingDown = true;
-    showStickyReference();
-    showScrollGradient();
-    lastScrollTimestamp = null; // Reset timestamp
+// Scroll engine
+// =============
+// One requestAnimationFrame loop drives every scripture scroll: hold-to-scroll
+// (↑/↓), passage-to-passage transitions (Space) and instant jumps (→).
+// The position is tracked as a float rather than read back from scrollTop,
+// which the browser rounds — reading it back each frame loses the fraction
+// and makes the speed uneven.
+const scroller = {
+    pos: 0,             // current scroll position (float)
+    velocity: 0,        // pixels per second; positive is down
+    heldDown: false,
+    heldUp: false,
+    tween: null,        // { from, to, start, duration } for Space transitions
+    anchor: 0,          // where the current passage was landed on; ↑ returns here
+    frame: null,
+    lastTimestamp: null
+};
 
-    const scrollStep = (timestamp) => {
-        if (!isScrollingDown) return;
-
-        const scrollContainer = document.getElementById('scroller-container');
-        const currentVerse = document.getElementById(`verse-${currentIndex}`);
-
-        if (!currentVerse) {
-            stopScrollDown();
-            return;
-        }
-
-        // Check if we're at the bottom boundary of the current passage
-        const verseRect = currentVerse.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const verseBottom = verseRect.bottom;
-        const viewportBottom = containerRect.bottom;
-
-        // Stop scrolling if we've reached the end of the current passage
-        if (verseBottom <= viewportBottom + 50) {
-            stopScrollDown();
-            return;
-        }
-
-        // Calculate scroll amount based on elapsed time
-        // On first frame, use a default 16ms delta to start scrolling immediately
-        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
-        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-        scrollContainer.scrollTop += scrollAmount;
-        isPartiallyScrolled = true;
-
-        lastScrollTimestamp = timestamp;
-        scrollAnimationFrame = requestAnimationFrame(scrollStep);
-    };
-
-    scrollAnimationFrame = requestAnimationFrame(scrollStep);
+function getScrollContainer() {
+    return document.getElementById('scroller-container');
 }
 
-// Stop continuous scroll down
-function stopScrollDown() {
-    isScrollingDown = false;
-    if (scrollAnimationFrame) {
-        cancelAnimationFrame(scrollAnimationFrame);
-        scrollAnimationFrame = null;
+function maxScroll() {
+    const container = getScrollContainer();
+    return container.scrollHeight - container.clientHeight;
+}
+
+// Write the engine's position to the page
+function applyScrollPosition() {
+    scroller.pos = Math.min(Math.max(scroller.pos, 0), maxScroll());
+    getScrollContainer().scrollTop = scroller.pos;
+}
+
+// Pick up any scrolling done outside the engine (mouse wheel, scrollbar)
+function syncScrollPosition() {
+    const actual = getScrollContainer().scrollTop;
+    if (Math.abs(actual - scroller.pos) > 1) {
+        scroller.pos = actual;
     }
-    lastScrollTimestamp = null;
+}
+
+// Top and bottom of the current passage, in scroll coordinates
+function getPassageBounds() {
+    const container = getScrollContainer();
+    const verse = document.getElementById(`verse-${currentIndex}`);
+    if (!verse) return null;
+
+    const containerTop = container.getBoundingClientRect().top;
+    const verseRect = verse.getBoundingClientRect();
+    const top = verseRect.top - containerTop + container.scrollTop;
+    const bottom = verseRect.bottom - containerTop + container.scrollTop;
+
+    return {
+        min: Math.min(scroller.anchor, top + PASSAGE_EDGE_MARGIN),
+        max: Math.max(scroller.anchor, bottom - container.clientHeight - PASSAGE_EDGE_MARGIN)
+    };
+}
+
+function ensureScrollLoop() {
+    if (scroller.frame === null) {
+        scroller.lastTimestamp = null;
+        scroller.frame = requestAnimationFrame(scrollFrame);
+    }
+}
+
+function stopScrollLoop() {
+    if (scroller.frame !== null) {
+        cancelAnimationFrame(scroller.frame);
+        scroller.frame = null;
+    }
+    scroller.velocity = 0;
+    scroller.tween = null;
+}
+
+function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function scrollFrame(timestamp) {
+    // Clamp the frame time so a dropped frame doesn't become a visible jump
+    const dt = scroller.lastTimestamp === null ? 1 / 60 : Math.min((timestamp - scroller.lastTimestamp) / 1000, 0.05);
+    scroller.lastTimestamp = timestamp;
+
+    if (scroller.tween) {
+        // Space: eased transition to the next passage
+        const { from, to, start, duration } = scroller.tween;
+        const t = Math.min((timestamp - (start ?? timestamp)) / duration, 1);
+        if (start === null) scroller.tween.start = timestamp;
+        scroller.pos = from + (to - from) * easeInOutCubic(t);
+        applyScrollPosition();
+
+        if (t >= 1) {
+            scroller.tween = null;
+            scroller.frame = null;
+            return;
+        }
+    } else {
+        // ↑/↓: ease toward the reading pace while held, and back to rest on release
+        const direction = (scroller.heldDown ? 1 : 0) - (scroller.heldUp ? 1 : 0);
+        const target = direction * SCROLL_SPEED;
+        scroller.velocity += (target - scroller.velocity) * (1 - Math.exp(-dt / SCROLL_RAMP));
+
+        // Glide to a stop at the passage edge instead of hitting it: cap the
+        // speed so a constant deceleration lands exactly on the edge
+        const bounds = getPassageBounds();
+        if (bounds) {
+            const brake = SCROLL_SPEED * SCROLL_SPEED / (2 * SCROLL_BRAKE_DISTANCE);
+            if (scroller.velocity > 0) {
+                const remaining = Math.max(bounds.max - scroller.pos, 0);
+                scroller.velocity = Math.min(scroller.velocity, Math.sqrt(2 * brake * remaining));
+                scroller.pos = Math.min(scroller.pos + scroller.velocity * dt, Math.max(bounds.max, scroller.pos));
+            } else if (scroller.velocity < 0) {
+                const remaining = Math.max(scroller.pos - bounds.min, 0);
+                scroller.velocity = Math.max(scroller.velocity, -Math.sqrt(2 * brake * remaining));
+                scroller.pos = Math.max(scroller.pos + scroller.velocity * dt, Math.min(bounds.min, scroller.pos));
+            }
+        } else {
+            scroller.pos += scroller.velocity * dt;
+        }
+        applyScrollPosition();
+
+        // Back at the top of the passage: drop the sticky reference
+        if (scroller.heldUp && bounds && scroller.pos - bounds.min < 1) {
+            hideStickyReference();
+            hideScrollGradient();
+            isPartiallyScrolled = false;
+        }
+
+        if (direction === 0 && Math.abs(scroller.velocity) < 1) {
+            scroller.velocity = 0;
+            scroller.frame = null;
+            return;
+        }
+    }
+
+    scroller.frame = requestAnimationFrame(scrollFrame);
+}
+
+// Start continuous scroll down (hold Down arrow)
+function startScrollDown() {
+    if (scroller.tween) return; // let a passage transition finish first
+    syncScrollPosition();
+    scroller.heldDown = true;
+
+    // A passage that already fits on screen has nowhere to scroll, so its
+    // reference is still visible and the sticky header would just repeat it
+    const bounds = getPassageBounds();
+    if (bounds && bounds.max - scroller.pos > 1) {
+        isPartiallyScrolled = true;
+        showStickyReference();
+        showScrollGradient();
+    }
+    ensureScrollLoop();
+}
+
+function stopScrollDown() {
+    scroller.heldDown = false;
 }
 
 // Start continuous scroll up (hold Up arrow)
 function startScrollUp() {
-    isScrollingUp = true;
-    lastScrollTimestamp = null; // Reset timestamp
-
-    const scrollStep = (timestamp) => {
-        if (!isScrollingUp) return;
-
-        const scrollContainer = document.getElementById('scroller-container');
-        const currentVerse = document.getElementById(`verse-${currentIndex}`);
-
-        if (!currentVerse) {
-            stopScrollUp();
-            return;
-        }
-
-        // Check if we're at the top boundary of the current passage
-        const verseRect = currentVerse.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const verseTop = verseRect.top;
-        const viewportTop = containerRect.top;
-
-        // Stop scrolling if we've reached the start of the current passage
-        if (verseTop >= viewportTop - 50) {
-            stopScrollUp();
-            hideStickyReference();
-            hideScrollGradient();
-            isPartiallyScrolled = false;
-            return;
-        }
-
-        // Calculate scroll amount based on elapsed time
-        // On first frame, use a default 16ms delta to start scrolling immediately
-        const deltaTime = lastScrollTimestamp !== null ? (timestamp - lastScrollTimestamp) : 16;
-        const scrollAmount = (SCROLL_SPEED / 1000) * deltaTime;
-        scrollContainer.scrollTop -= scrollAmount;
-
-        lastScrollTimestamp = timestamp;
-        scrollAnimationFrame = requestAnimationFrame(scrollStep);
-    };
-
-    scrollAnimationFrame = requestAnimationFrame(scrollStep);
+    if (scroller.tween) return;
+    syncScrollPosition();
+    scroller.heldUp = true;
+    ensureScrollLoop();
 }
 
-// Stop continuous scroll up
 function stopScrollUp() {
-    isScrollingUp = false;
-    if (scrollAnimationFrame) {
-        cancelAnimationFrame(scrollAnimationFrame);
-        scrollAnimationFrame = null;
-    }
-    lastScrollTimestamp = null;
+    scroller.heldUp = false;
+}
+
+// Release held keys, e.g. when the window loses focus and keyup never arrives
+function releaseScrollKeys() {
+    stopScrollDown();
+    stopScrollUp();
 }
 
 // Jump down within current passage (instant, not smooth)
 function jumpDownWithinPassage() {
-    const scrollContainer = document.getElementById('scroller-container');
-    const currentVerse = document.getElementById(`verse-${currentIndex}`);
+    stopScrollLoop();
+    syncScrollPosition();
 
-    if (!currentVerse) return;
+    const bounds = getPassageBounds();
+    if (!bounds) return;
 
-    // Calculate jump amount (40% of viewport height, roughly 6-8 lines)
-    const viewportHeight = scrollContainer.clientHeight;
-    const jumpAmount = viewportHeight * 0.40;
+    // Jump 40% of the viewport (roughly 6-8 lines), but not past the passage end
+    const jumpAmount = getScrollContainer().clientHeight * 0.40;
+    const remaining = bounds.max + PASSAGE_EDGE_MARGIN - scroller.pos;
+    if (remaining <= 10) return;
 
-    // Get current boundaries
-    const verseRect = currentVerse.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const verseBottom = verseRect.bottom;
-    const viewportBottom = containerRect.bottom;
-
-    // Calculate remaining space in current passage
-    const remainingSpace = verseBottom - viewportBottom;
-
-    // If we're already at or near the bottom, don't scroll further
-    if (remainingSpace <= 10) {
-        return;
-    }
-
-    // Jump by the smaller of jumpAmount or remaining space
-    const actualJump = Math.min(jumpAmount, remainingSpace - 10);
-    scrollContainer.scrollTop += actualJump;
+    scroller.pos += Math.min(jumpAmount, remaining - 10);
+    applyScrollPosition();
 
     // Mark as partially scrolled and show sticky reference
     isPartiallyScrolled = true;
@@ -373,18 +432,37 @@ function jumpDownWithinPassage() {
 // Scroll to a specific verse (between-passage transition)
 function scrollToVerse(index, instant=false) {
     const verse = document.getElementById(`verse-${index}`);
-    if (verse) {
-        // Check if this passage is short (200 characters or less)
-        const passageText = passages[index].text;
-        // Strip HTML tags to get plain text length
-        const plainText = passageText.replace(/<[^>]*>/g, '');
-        const isShortPassage = plainText.length <= 200;
+    if (!verse) return;
 
-        verse.scrollIntoView({
-            behavior: instant ? 'instant' : 'smooth',
-            block: isShortPassage ? 'center' : 'start'
-        });
+    const container = getScrollContainer();
+    syncScrollPosition();
+
+    // Short passages (200 characters or less) are centered; longer ones start at the top
+    const plainText = passages[index].text.replace(/<[^>]*>/g, '');
+    const isShortPassage = plainText.length <= 200;
+
+    const verseTop = verse.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    const target = isShortPassage
+        ? verseTop + verse.offsetHeight / 2 - container.clientHeight / 2
+        : verseTop;
+    const to = Math.min(Math.max(target, 0), maxScroll());
+
+    scroller.anchor = to;
+    scroller.heldDown = false;
+    scroller.heldUp = false;
+
+    if (instant) {
+        stopScrollLoop();
+        scroller.pos = to;
+        applyScrollPosition();
+        return;
     }
+
+    const distance = Math.abs(to - scroller.pos);
+    const duration = Math.min(Math.max(distance * TRANSITION_MS_PER_PX + 400, TRANSITION_MIN_MS), TRANSITION_MAX_MS);
+    scroller.velocity = 0;
+    scroller.tween = { from: scroller.pos, to, start: null, duration };
+    ensureScrollLoop();
 }
 
 // Update visual states of verses (active, dimmed, upcoming)
@@ -1017,6 +1095,7 @@ async function loadPassageFile(filename) {
         mediaContainer.style.display = 'none';
 
         renderVerses();
+        scrollToVerse(0, true);
         updateCurrentFileName();
 
         // Close the file browser.

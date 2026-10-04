@@ -382,13 +382,12 @@ what limits the damage — worst case on a leak is read/write of slide media.
 - **Backend:** Node.js + Express server for file management
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
 - **Animations:**
-  - Hardware-accelerated smooth scrolling using `requestAnimationFrame` for 60fps+ performance
-  - Native `scrollIntoView()` for passage-to-passage transitions
+  - One `requestAnimationFrame` scroll engine: hold-to-scroll eases in and out of reading pace and glides to a stop at passage edges; passage-to-passage transitions are eased tweens whose duration scales with distance (tunables at the top of `app.js`)
   - CSS transitions for crossfade effects (1.2s duration)
 - **Media Support:** Full-screen image display with crossfade transitions between Scripture and Media modes
 - **Data Source:** JSON files loaded via REST API, auto-saved on edit, supports both Scripture-only and Scripture+Media formats
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
-- **Typography:** Georgia serif, 4rem size, justified text
+- **Typography:** [Libron](https://github.com/nicoverbruggen/libron) (OFL, bundled in `fonts/` for offline use; Georgia fallback), 4rem size, ragged-right text
 - **Themes:** Dark mode (default) and light mode with authentic Bible page aesthetic (warm cream texture, gutter shadow, red page edge)
 - **Editing:** Full WYSIWYG editing with contentEditable, passage management with dynamic re-rendering
 - **File Browser:** Sidebar UI for loading/managing passage files

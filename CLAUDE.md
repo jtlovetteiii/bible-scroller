@@ -65,7 +65,8 @@ change, so ad-hoc fixes must go into a durable input (the deck JSON or a
 
 - **No frontend framework**: Vanilla JavaScript for simplicity and offline reliability
 - **Node.js backend**: Express server provides file loading/saving via REST API
-- **Smooth scrolling**: Uses `requestAnimationFrame` for hardware-accelerated scrolling, plus native `scrollIntoView()` for passage transitions
+- **Smooth scrolling**: One `requestAnimationFrame` scroll engine in `app.js` (`scroller`) drives hold-to-scroll, → jumps and Space transitions. Never add CSS `scroll-behavior: smooth` to `#scroller-container` — it fights the engine's per-frame `scrollTop` writes
+- **Typography**: Libron, bundled in `fonts/` (OFL) so it works offline; ragged-right, not justified
 - **JSON data source**: Simple format for non-technical operators to edit passages
 - **File-based persistence**: All passage data stored in JSON files, supports cloud sync (OneDrive, etc.)
 
