@@ -44,6 +44,17 @@ Thumbs.db
 .dolt/
 *.db
 .beads-credential-key
+# Issue data travels via refs/dolt/data (bd dolt push/pull), not git files.
+# These are local exports and per-machine state; tracking them only produced
+# churn on every commit and let a stale clone export over newer data.
+# config.yaml, metadata.json, README.md and hooks/ stay tracked: bd bootstrap
+# needs config.yaml on a fresh clone.
+.beads/issues.jsonl
+.beads/interactions.jsonl
+.beads/export-state.json
+.beads/dolt-backup.json
+.beads/backup/
+.beads/embeddeddolt/
 
 # Terraform (infra/) — provider binaries and local state cache.
 # .terraform.lock.hcl is deliberately NOT ignored: it pins provider hashes and

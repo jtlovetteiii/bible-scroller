@@ -182,7 +182,7 @@ bd close <id>         # Complete work
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a local, gitignored export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 
 ## Session Completion
 
@@ -203,9 +203,8 @@ bd close <id>         # Complete work
    ```
    `bd dolt push` sends the issue database to `refs/dolt/data` on the same
    GitHub remote (configured as `sync.git-remote` in `.beads/config.yaml`).
-   Skipping it is how clones drift apart: `.beads/issues.jsonl` alone is a
-   passive export, and a machine that never pulled your Dolt data can export
-   its own staler database straight over the file. On a fresh clone, run
+   Skipping it is how clones drift apart: git carries no issue data at all
+   (`.beads/issues.jsonl` is a local, gitignored export). On a fresh clone, run
    `bd bootstrap` (reads `sync.git-remote`, clones the DB) before `bd init`.
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
