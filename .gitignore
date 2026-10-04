@@ -8,6 +8,11 @@ passages/*.jpeg
 passages/*/*.jpeg
 passages/*/*.jpg
 passages/*/*.html
+# Generated build outputs. The deck JSON (service.deck.json) is the DURABLE input
+# the agent amends across a thread, so it is deliberately NOT ignored — only the
+# rendered report/preview, which are rebuilt from it, are. The reference output is
+# pinned as a test golden (tests/golden/), so nothing is lost by not tracking these.
+passages/*/service-report.json
 !passages/john-1-1-10.json
 !passages/test-point-1.jpg
 !passages/test-point-2.jpg
@@ -17,6 +22,46 @@ outlines/*.docx
 # Environment variables
 .env
 
+# Secrets — Gmail OAuth client + refresh token, Claude subscription token
+token.json
+gmail_credentials.json
+*credentials*.json
+*token*.json
+
+# Python (agent/)
+__pycache__/
+*.py[cod]
+.venv/
+agent/state.db
+agent/spike/.session_id
+.pytest_cache/
+
 # OS files
 .DS_Store
 Thumbs.db
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+# Issue data travels via refs/dolt/data (bd dolt push/pull), not git files.
+# These are local exports and per-machine state; tracking them only produced
+# churn on every commit and let a stale clone export over newer data.
+# config.yaml, metadata.json, README.md and hooks/ stay tracked: bd bootstrap
+# needs config.yaml on a fresh clone.
+.beads/issues.jsonl
+.beads/interactions.jsonl
+.beads/export-state.json
+.beads/dolt-backup.json
+.beads/backup/
+.beads/embeddeddolt/
+
+# Terraform (infra/) — provider binaries and local state cache.
+# .terraform.lock.hcl is deliberately NOT ignored: it pins provider hashes and
+# belongs in git. Real state lives in the S3 backend, not on disk.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log

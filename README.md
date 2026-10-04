@@ -206,6 +206,163 @@ The simplicity of this approach makes it easy to use with file sync tools like O
 }
 ```
 
+## 🧪 Testing
+
+The repo has **three test surfaces with very different costs.** Know which you're
+running before you run it — one of them spends real money.
+
+| Command | Covers | Cost | When |
+|---|---|---|---|
+| `npm test` | The deterministic slide builder (`scripts/build-deck.js`): reference deck HTML + report goldens, the cardinal-rule build errors, the CLI contract. | Fast, free, offline | Anytime; before committing any change to the builder, schema, songs, or templates. |
+| `cd agent && uv run pytest` | Python agent unit tests — gate, dispatcher, SQLite store, Gmail tools, harness. | Fast, free, offline | Anytime; before committing agent changes. |
+| `cd agent && uv run pytest -m eval` | End-to-end **evals**: the real model runs `gen_service` against the actual example flowcharts. | **Slow (~8 min) and burns API tokens; needs subscription auth.** | Deliberately, after changing the `gen_service` skill or the batch contract. Not part of a routine test run. |
+
+A few things worth keeping straight:
+
+- **The evals are opt-in and do not run by default.** `uv run pytest` excludes
+  them (`-m "not eval"` in `agent/pyproject.toml`), so the normal suite stays fast
+  and offline. You only pay for the evals when you explicitly pass `-m eval`.
+- **`npm run test:update`** re-records the `build-deck.js` golden files *and*
+  rebuilds the reference preview (`passages/2026-06-28/`). Run it after an
+  intentional change to the renderer or templates, then eyeball the diff — the
+  goldens are the thing standing between a code change and a broken slide.
+- **Why the tests are shaped this way:** the model's only output is deck JSON and
+  everything downstream is deterministic, so the deterministic half is pinned by
+  cheap golden tests and the model's *judgment* is what the (expensive) evals
+  check. Full rationale in `specs/email-agent.md` §5.1–5.2.
+
+> Note: `npm test` and the evals cover the **service-slide builder and email agent**
+> subsystem (see `specs/email-agent.md`). The core Scripture-scrolling app has no
+> automated tests; it is verified by hand in the browser.
+
+## ☁️ Infrastructure
+
+Generated decks are published to a public S3 bucket rather than served off the
+agent host (see `specs/deck-publishing.md`). That bucket and its IAM are
+**managed by Terraform in `infra/`** — don't click it together in the console, or
+the next `terraform apply` will fight you.
+
+```bash
+cd infra
+export AWS_PROFILE=<your-profile>   # the S3 backend needs this too, not just the provider
+terraform plan
+```
+
+What it creates:
+
+- **`cbc-wilm-agent-public`** — the deck bucket, configured as a static website.
+  ACLs are disabled (`BucketOwnerEnforced`); public read comes from a **bucket
+  policy** granting anonymous `s3:GetObject`. Consequence worth knowing: uploads
+  must **not** pass `--acl public-read`, which now hard-fails. Objects are public
+  by virtue of the policy alone.
+- **`cbc-wilm-agent-publisher`** — an IAM policy scoped to this one bucket:
+  `ListBucket`, `GetObject`, `PutObject`. No `DeleteObject`, so an unattended run
+  that goes wrong can't unmake past services. Add it if pruning is ever needed.
+- **`cbc-wilm-agent`** — a dedicated IAM user with that policy attached
+  directly, so the agent can be revoked and audited apart from any human.
+- **CORS** (`GET`/`HEAD`, any origin) so a deck rendered *outside* the bucket —
+  a local preview built with `--asset-base` pointing at S3 — can load template
+  images without tainting the html2canvas canvas and breaking Export. Decks
+  served from the bucket are same-origin and don't need it.
+
+### Use the REST endpoint, not the website endpoint
+
+`DECK_BASE_URL` must be the bucket's **REST** endpoint over **https**:
+
+```
+https://cbc-wilm-agent-public.s3.us-east-1.amazonaws.com     ← yes
+http://cbc-wilm-agent-public.s3-website-us-east-1.amazonaws.com   ← no
+```
+
+This bit is a trap, so it's worth knowing why. That origin is baked into every
+`<img src>` in the deck **at render time**. An `http` origin therefore means
+`http` images — and a browser silently **blocks** insecure images on an `https`
+page. The result is a deck whose text and layout are perfect and whose
+backgrounds are all missing, with nothing in the UI to say so. S3 static website
+endpoints cannot serve `https` at all, which is what rules them out.
+
+`https` is safe from either endpoint: mixed-content blocking only applies to
+insecure subresources on a secure page, never the reverse. The website
+configuration still exists in `infra/` and is harmless — nothing depends on its
+index-document suffix, because published decks are always explicit
+`.../index.html` paths.
+
+`terraform output` also emits `deck_website_endpoint`. **Don't feed that to
+`build-deck.js` or `DECK_BASE_URL`** — it's the `http` one.
+
+### Syncing templates — run this when you change a background
+
+```bash
+npm run sync-templates              # upload templates/service/*.png
+npm run sync-templates -- --dry-run # show what would go, change nothing
+```
+
+**This is an operator step, not something the agent does.** The slide
+backgrounds are a small shared set reused across every deck (`hymn-1.png` alone
+appears ~20× in one service), so they are uploaded once and left alone — that is
+what keeps publishing a deck down to a single HTML upload. Run this by hand
+**after you add or edit a template**, and not otherwise.
+
+Re-running is a no-op: `aws s3 sync` compares size and mtime, so an unchanged
+set takes under a second. It does **not** prune — renaming a template leaves the
+old object in the bucket, unreferenced and harmless. That is deliberate; the
+agent has no `DeleteObject` so a run that goes wrong cannot unmake past
+services.
+
+> **Heads-up:** the templates are currently ~188 MB, and a single deck pulls
+> ~71 MB of them on first load. That is bad on a phone, and it is tracked in
+> `bs-9x5` — the backgrounds are stored at ~3× the resolution the export path
+> actually uses. Until that lands, expect a hosted deck to be slow to open.
+
+### Publishing a deck
+
+The agent publishes with the `publish_deck` tool
+(`agent/src/email_agent/publish.py`); by hand it's:
+
+```python
+from email_agent.publish import publish_deck
+publish_deck("examples/2026-06-28.deck.json")   # -> {"url": ..., "key": ...}
+```
+
+It takes the **deck JSON, not the preview HTML**, and re-renders before
+uploading. That is the part worth understanding: your local
+`passages/<date>/service-preview.html` is built with the default asset base
+(`/templates/service`), so its background paths only resolve against the Express
+dev server. Uploading that file gives you a deck with every background missing.
+Publishing renders a second copy with `--asset-base` pointed at the bucket and
+uploads *that*; your local preview is untouched.
+
+Exactly **one HTML object** goes up per deck — templates sync separately and
+rarely (`bs-tiz.11`), and there are no per-deck images.
+
+Configuration is three env vars (see `.env.example`): `DECK_BASE_URL` (the public
+origin everything hangs off), `DECK_BUCKET`, and `DECK_PREFIX`. Published paths
+are `<prefix>/<date>/index.html` and are **permanent by design** — an emailed link
+lives in the minister's mailbox forever, so a date-keyed scheme lets a future
+CloudFront + custom domain keep old links working. Re-publishing a date replaces
+the deck at the same URL, which is what you want after a correction.
+
+### Access keys are created by hand — on purpose
+
+**Terraform does not manage the agent's access key**, and shouldn't: an
+`aws_iam_access_key` resource writes the secret into the state file, where it
+would live forever. So after `terraform apply`:
+
+1. Create an access key for the `cbc-wilm-agent` user in the IAM console.
+2. Put it **only** in the agent host's environment (systemd `EnvironmentFile`,
+   `0600`, root-owned — not a `.env` in this repo).
+3. Verify with `aws sts get-caller-identity` that you get `cbc-wilm-agent` back
+   and not some other identity.
+
+The plan showing a user with no key is correct, not half-finished — Terraform
+doesn't track keys and won't report drift on one.
+
+Why a user with a key instead of a role: the agent runs on a self-hosted always-on
+box (`specs/email-agent.md` §4.6), so there's no EC2 instance profile to source
+temporary credentials from, and a user-assumes-role hop would add a trust policy
+without shrinking the blast radius. The scoping of `cbc-wilm-agent-publisher` is
+what limits the damage — worst case on a leak is read/write of slide media.
+
 ## 🔧 Development Roadmap
 
 | Milestone | Status | Description |
@@ -225,13 +382,12 @@ The simplicity of this approach makes it easy to use with file sync tools like O
 - **Backend:** Node.js + Express server for file management
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
 - **Animations:**
-  - Hardware-accelerated smooth scrolling using `requestAnimationFrame` for 60fps+ performance
-  - Native `scrollIntoView()` for passage-to-passage transitions
+  - One `requestAnimationFrame` scroll engine: hold-to-scroll eases in and out of reading pace and glides to a stop at passage edges; passage-to-passage transitions are eased tweens whose duration scales with distance (tunables at the top of `app.js`)
   - CSS transitions for crossfade effects (1.2s duration)
 - **Media Support:** Full-screen image display with crossfade transitions between Scripture and Media modes
 - **Data Source:** JSON files loaded via REST API, auto-saved on edit, supports both Scripture-only and Scripture+Media formats
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
-- **Typography:** Georgia serif, 4rem size, justified text
+- **Typography:** [Libron](https://github.com/nicoverbruggen/libron) (OFL, bundled in `fonts/` for offline use; Georgia fallback), 4rem size, ragged-right text
 - **Themes:** Dark mode (default) and light mode with authentic Bible page aesthetic (warm cream texture, gutter shadow, red page edge)
 - **Editing:** Full WYSIWYG editing with contentEditable, passage management with dynamic re-rendering
 - **File Browser:** Sidebar UI for loading/managing passage files

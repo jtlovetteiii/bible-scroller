@@ -1,0 +1,429 @@
+{
+  "date": "2026-06-28",
+  "season": "summer",
+  "season_source": "derived-from-date",
+  "slides": 37,
+  "segments": [
+    {
+      "index": 1,
+      "type": "preshow",
+      "slides": [
+        1,
+        1
+      ]
+    },
+    {
+      "index": 2,
+      "type": "prelude",
+      "slides": [
+        2,
+        2
+      ]
+    },
+    {
+      "index": 3,
+      "type": "welcome",
+      "slides": [
+        3,
+        6
+      ]
+    },
+    {
+      "index": 4,
+      "type": "song",
+      "slides": [
+        7,
+        10
+      ]
+    },
+    {
+      "index": 5,
+      "type": "song",
+      "slides": [
+        11,
+        15
+      ]
+    },
+    {
+      "index": 6,
+      "type": "special_music",
+      "slides": [
+        16,
+        16
+      ]
+    },
+    {
+      "index": 7,
+      "type": "song",
+      "slides": [
+        17,
+        21
+      ]
+    },
+    {
+      "index": 8,
+      "type": "song",
+      "slides": [
+        22,
+        22
+      ]
+    },
+    {
+      "index": 9,
+      "type": "sermon_transition",
+      "slides": [
+        23,
+        23
+      ]
+    },
+    {
+      "index": 10,
+      "type": "song",
+      "slides": [
+        24,
+        34
+      ]
+    },
+    {
+      "index": 11,
+      "type": "closing_prayer",
+      "slides": [
+        35,
+        37
+      ]
+    }
+  ],
+  "songs": [
+    {
+      "slug": "o-for-a-thousand-tongues-to-sing",
+      "title": "O for a Thousand Tongues to Sing",
+      "type": "hymn",
+      "verified": true,
+      "public_domain": true,
+      "number": null,
+      "role": "prelude",
+      "background": null,
+      "sections": [],
+      "slides": [
+        2
+      ]
+    },
+    {
+      "slug": "holy-holy-holy",
+      "title": "Holy, Holy, Holy",
+      "type": "hymn",
+      "verified": true,
+      "public_domain": true,
+      "number": 2,
+      "role": "hymn",
+      "background": "hymn-1.png",
+      "sections": [
+        "Verse 1",
+        "Verse 2",
+        "Verse 3"
+      ],
+      "slides": [
+        7
+      ]
+    },
+    {
+      "slug": "worthy-of-worship",
+      "title": "Worthy of Worship",
+      "type": "hymn",
+      "verified": false,
+      "public_domain": false,
+      "number": 3,
+      "role": "hymn",
+      "background": "hymn-1.png",
+      "sections": [
+        "Verse 1",
+        "Refrain",
+        "Verse 2",
+        "Refrain"
+      ],
+      "slides": [
+        11
+      ]
+    },
+    {
+      "slug": "o-what-a-savior",
+      "title": "O What a Savior",
+      "type": "choral",
+      "verified": false,
+      "public_domain": false,
+      "number": null,
+      "role": "special_music",
+      "background": null,
+      "sections": [],
+      "slides": [
+        16
+      ]
+    },
+    {
+      "slug": "waymaker",
+      "title": "Way Maker",
+      "type": "praise",
+      "verified": false,
+      "public_domain": false,
+      "number": null,
+      "role": "praise",
+      "background": "praise-1.png",
+      "sections": [
+        "Verse 1",
+        "Chorus",
+        "Verse 2",
+        "Bridge"
+      ],
+      "slides": [
+        17
+      ]
+    },
+    {
+      "slug": "his-name-is-jesus",
+      "title": "His Name Is Jesus",
+      "type": "praise",
+      "verified": false,
+      "public_domain": false,
+      "number": null,
+      "role": "praise",
+      "background": "praise-2.png",
+      "sections": [],
+      "slides": [
+        22
+      ]
+    },
+    {
+      "slug": "i-am-resolved",
+      "title": "I Am Resolved",
+      "type": "hymn",
+      "verified": true,
+      "public_domain": true,
+      "number": 301,
+      "role": "invitation",
+      "background": "hymn-1.png",
+      "sections": [
+        "Verse 1",
+        "Refrain",
+        "Verse 2",
+        "Refrain",
+        "Verse 3",
+        "Refrain",
+        "Verse 4",
+        "Refrain",
+        "Verse 5",
+        "Refrain"
+      ],
+      "slides": [
+        24
+      ]
+    }
+  ],
+  "unverified": [
+    {
+      "song": "worthy-of-worship",
+      "title": "Worthy of Worship",
+      "slides": [
+        11
+      ]
+    },
+    {
+      "song": "waymaker",
+      "title": "Way Maker",
+      "slides": [
+        17
+      ]
+    }
+  ],
+  "splits": [],
+  "typography": [
+    {
+      "segment": 4,
+      "song": "Holy, Holy, Holy",
+      "slides": [
+        8,
+        9,
+        10
+      ],
+      "size": 60,
+      "kind": "caesura",
+      "lines": [
+        {
+          "line": "Early in the morning our song shall rise to Thee;",
+          "as": [
+            "Early in the morning",
+            "our song shall rise to Thee;"
+          ]
+        },
+        {
+          "line": "Casting down their golden crowns around the glassy sea;",
+          "as": [
+            "Casting down their golden crowns",
+            "around the glassy sea;"
+          ]
+        },
+        {
+          "line": "Cherubim and seraphim falling down before Thee,",
+          "as": [
+            "Cherubim and seraphim",
+            "falling down before Thee,"
+          ]
+        },
+        {
+          "line": "Holy, holy, holy! though the darkness hide Thee,",
+          "as": [
+            "Holy, holy, holy!",
+            "though the darkness hide Thee,"
+          ]
+        },
+        {
+          "line": "Though the eye of sinful man Thy glory may not see,",
+          "as": [
+            "Though the eye of sinful man",
+            "Thy glory may not see,"
+          ]
+        }
+      ],
+      "reason": "5 line(s) too wide for the slide at 60px were broken at the caesura marked in songs/holy-holy-holy.md, keeping the song at full size."
+    },
+    {
+      "segment": 4,
+      "song": "Holy, Holy, Holy",
+      "slides": [
+        8,
+        9,
+        10
+      ],
+      "size": 60,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 6 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 15px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/holy-holy-holy.md to keep the song at 75px.",
+      "unmarked": [
+        "Holy, holy, holy! Lord God Almighty!",
+        "Holy, holy, holy! merciful and mighty!",
+        "God in three Persons, blessed Trinity!",
+        "Holy, holy, holy! all the saints adore Thee,",
+        "Which wert, and art, and evermore shalt be.",
+        "Only Thou art holy; there is none beside Thee"
+      ]
+    },
+    {
+      "segment": 5,
+      "song": "Worthy of Worship",
+      "slides": [
+        12,
+        13,
+        14,
+        15
+      ],
+      "size": 66,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 6 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 9px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/worthy-of-worship.md to keep the song at 75px.",
+      "unmarked": [
+        "Worthy of all the glad songs we can sing,",
+        "Worthy of all of the off'rings we bring.",
+        "You are worthy, worthy and wonderful;",
+        "Worthy of bowing and bending of knees,",
+        "Worthy of all this and added to these.",
+        "You are worthy, worthy and wonderful;"
+      ]
+    },
+    {
+      "segment": 7,
+      "song": "Way Maker",
+      "slides": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "size": 66,
+      "kind": "caesura",
+      "lines": [
+        {
+          "line": "Way Maker, Miracle Worker, Promise Keeper,",
+          "as": [
+            "Way Maker, Miracle Worker,",
+            "Promise Keeper,"
+          ]
+        }
+      ],
+      "reason": "1 line(s) too wide for the slide at 66px were broken at the caesura marked in songs/waymaker.md, keeping the song at full size."
+    },
+    {
+      "segment": 7,
+      "song": "Way Maker",
+      "slides": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "size": 66,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 3 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 9px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/waymaker.md to keep the song at 75px.",
+      "unmarked": [
+        "Even when I don't see it, You're working.",
+        "Even when I don't feel it, You're working.",
+        "You never stop, You never stop working."
+      ]
+    },
+    {
+      "segment": 10,
+      "song": "I Am Resolved",
+      "slides": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "size": 60,
+      "kind": "shrunk",
+      "reason": "shrunk from 75px because 16 line(s) are too wide for the slide and carry no caesura marker. One long line costs EVERY verse 15px, so marking it is usually the better fix.",
+      "fix": "Add a \"|\" at the caesura of the line(s) below in songs/i-am-resolved.md to keep the song at 75px.",
+      "unmarked": [
+        "Things that are higher, things that are nobler,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "He is the true One, He is the just One,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "Heed what He sayeth, do what He willeth,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "Friends may oppose me, foes may beset me,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee.",
+        "I am resolved, and who will go with me?",
+        "Taught by the Bible, led by the Spirit,",
+        "I will hasten to Him, hasten so glad and free;",
+        "Jesus, greatest, highest, I will come to Thee."
+      ]
+    }
+  ],
+  "missing": [
+    {
+      "segment": 6,
+      "type": "special_music",
+      "title": "O What a Savior",
+      "need": "performer name (e.g. \"Calvary Choir\")"
+    },
+    {
+      "segment": 8,
+      "type": "song",
+      "song": "his-name-is-jesus",
+      "title": "His Name Is Jesus",
+      "need": "lyrics — songs/his-name-is-jesus.md has no projectable sections (empty or placeholder text), so only the title slide was generated"
+    }
+  ],
+  "warnings": [],
+  "notes": "Reference deck: reproduces the hand-written passages/2026-06-28/service-preview.html via scripts/build-deck.js.",
+  "exports": "Slide01.jpeg … Slide37.jpeg"
+}

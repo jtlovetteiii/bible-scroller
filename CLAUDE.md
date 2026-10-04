@@ -17,11 +17,56 @@ This is a web application with a Node.js backend and vanilla JavaScript frontend
 - **passages/**: Directory containing JSON passage files for different services
 - **config.json**: Server configuration (passages directory path, port)
 
+### Service Slide Builder & Email Agent
+
+A second subsystem, layered on top of the scroller, generates ProPresenter slide
+decks for the *musical* portion of a service and (as the `bs-tiz` epic) can run
+unattended, driven by an emailed order of service. Full design:
+**`specs/email-agent.md`**. Key pieces:
+
+- **`.claude/commands/gen_service.md`**: the skill that turns an order of service
+  into a deck. Emits **deck JSON, never HTML**. Has an interactive mode (human in
+  the chat) and a non-interactive **batch mode** (whole order of service at once,
+  used by the agent).
+- **`scripts/build-deck.js`**: deterministic renderer — deck JSON → slide HTML +
+  a machine-readable `service-report.json`. Owns everything mechanical: slide
+  numbering, backgrounds, seasons, stanza splitting, and **typography**. Pinned by
+  `tests/build-deck.test.js` (`npm test`).
+- **`schemas/deck.schema.json`**: the deck JSON contract.
+- **`songs/`**: one Markdown file per song (frontmatter + `## Section` headings).
+  A `|` in a lyric line is a **caesura** — where the renderer may break that line
+  if it is too wide, rather than shrinking the whole song. Never shown on a slide.
+- **`agent/`**: the Python Claude Agent SDK harness, Gmail gate/tools, and SQLite
+  dispatcher. Tests: `cd agent && uv run pytest`; evals: `uv run pytest -m eval`.
+
+**Copyrighted lyrics were the agent's one unsolved failure mode — solved by changing
+the endpoint, not the pipeline.** Anthropic's API content-filters the licensed lyrics
+the church is entitled to display, which killed a real Sunday (2026-07-26). The filter
+is a property of the *endpoint*, not the model: lyrics merely being in context trips
+it, so no prompt or output shaping avoids it. The fix is `AGENT_BASE_URL` — point the
+agent's CLI subprocess at any Anthropic-compatible endpoint (currently Moonshot,
+`kimi-k3[1m]`). See `.env.example` and `Config.agent_env()`. Verified end to end on
+2026-08-02 and on a re-run of the 7/26 thread.
+
+*Shelved by that decision:* `specs/lyric-ingestion.md`, `agent/src/email_agent/lyrics/`,
+and `agent/tests/probes/` — the local-model/line-offset design (`bs-8qs`, `bs-2pn`)
+that avoided sending lyrics to a cloud model. It is **not wired into the runtime**;
+nothing imports `lyrics/`. Kept because the measurement work is real and the design is
+the fallback if the backend ever becomes unavailable. Do not build on it without
+deciding to revive it first.
+
+Two rules that are easy to violate: **the model emits data, not slide markup** —
+if a slide is wrong, fix `build-deck.js`, not the HTML; and **never hand-edit a
+generated `service-preview.html`** — it is rebuilt from the deck JSON on every
+change, so ad-hoc fixes must go into a durable input (the deck JSON or a
+`songs/*.md` file). See `specs/email-agent.md` §5.1.
+
 ### Key Technical Decisions
 
 - **No frontend framework**: Vanilla JavaScript for simplicity and offline reliability
 - **Node.js backend**: Express server provides file loading/saving via REST API
-- **Smooth scrolling**: Uses `requestAnimationFrame` for hardware-accelerated scrolling, plus native `scrollIntoView()` for passage transitions
+- **Smooth scrolling**: One `requestAnimationFrame` scroll engine in `app.js` (`scroller`) drives hold-to-scroll, → jumps and Space transitions. Never add CSS `scroll-behavior: smooth` to `#scroller-container` — it fights the engine's per-frame `scrollTop` writes
+- **Typography**: Libron, bundled in `fonts/` (OFL) so it works offline; ragged-right, not justified
 - **JSON data source**: Simple format for non-technical operators to edit passages
 - **File-based persistence**: All passage data stored in JSON files, supports cloud sync (OneDrive, etc.)
 
@@ -115,3 +160,59 @@ Next milestones:
 - WebSocket server for remote control from tablet/phone
 - Alternative input formats (YAML, Markdown)
 - Presentation metadata (service date, sermon title, etc.)
+
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## Beads Issue Tracker
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
+```
+
+### Rules
+
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a local, gitignored export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+
+## Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   git push
+   git status  # MUST show "up to date with origin"
+
+   bd dolt push  # issue data — NOT automatic, and NOT covered by git push
+   ```
+   `bd dolt push` sends the issue database to `refs/dolt/data` on the same
+   GitHub remote (configured as `sync.git-remote` in `.beads/config.yaml`).
+   Skipping it is how clones drift apart: git carries no issue data at all
+   (`.beads/issues.jsonl` is a local, gitignored export). On a fresh clone, run
+   `bd bootstrap` (reads `sync.git-remote`, clones the DB) before `bd init`.
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+<!-- END BEADS INTEGRATION -->

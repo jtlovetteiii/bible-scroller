@@ -1,3 +1,36 @@
+/* Libron (OFL, bundled for offline use — see fonts/Libron-OFL.txt) */
+@font-face {
+    font-family: 'Libron';
+    src: url('fonts/Libron-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Libron';
+    src: url('fonts/Libron-Italic.woff2') format('woff2');
+    font-weight: 400;
+    font-style: italic;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Libron';
+    src: url('fonts/Libron-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Libron';
+    src: url('fonts/Libron-BoldItalic.woff2') format('woff2');
+    font-weight: 700;
+    font-style: italic;
+    font-display: block;
+}
+
 /* Reset and base styles */
 * {
     margin: 0;
@@ -6,7 +39,7 @@
 }
 
 body {
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: 'Libron', 'Georgia', 'Times New Roman', serif;
     background-color: #1a1a1a;
     color: #ffffff;
     overflow: hidden;
@@ -62,7 +95,8 @@ body.light-theme::after {
     width: 100%;
     height: 100vh;
     overflow-y: auto;
-    scroll-behavior: smooth;
+    /* No scroll-behavior: smooth — app.js animates scrolling itself, and the
+       CSS animation would fight every per-frame scrollTop write. */
     padding: 10vh 15vw;
 }
 
@@ -164,7 +198,10 @@ body.light-theme .verse-section.active .verse-ref {
     line-height: 1.6;
     font-weight: 400;
     letter-spacing: 0.02em;
-    text-align: justify;
+    /* Ragged right: at ~35 characters per line, justification opens wide
+       rivers between words. */
+    text-align: left;
+    text-wrap: pretty;
 }
 
 /* Words of Christ styling */
@@ -174,7 +211,7 @@ body.light-theme .verse-section.active .verse-ref {
 
 /* Quotation styling */
 .words-of-quote {
-    font-style: italic; /* Crimson red */
+    font-style: italic;
 }
 
 /* Edit mode buttons */

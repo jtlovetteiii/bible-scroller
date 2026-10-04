@@ -1,0 +1,16 @@
+{
+  "date": "2026-07-26",
+  "notes": "From Quentin's 2026-07-24 email listing six songs for lyric slides. No date was given, so this assumes the next Sunday. No prelude/invitation was specified, so all six are treated as pre-sermon congregational songs in the order listed. All six are title_only pending lyrics.",
+  "segments": [
+    { "type": "preshow" },
+    { "type": "welcome" },
+    { "type": "song", "song": "the-lord-will-provide", "title_only": true },
+    { "type": "song", "song": "one-day", "title_only": true },
+    { "type": "song", "song": "how-firm-a-foundation", "title_only": true },
+    { "type": "song", "song": "no-body", "title_only": true },
+    { "type": "song", "song": "goodness-of-god", "title_only": true },
+    { "type": "song", "song": "jesus-keep-me-near-the-cross", "title_only": true },
+    { "type": "sermon_transition" },
+    { "type": "closing_prayer" }
+  ]
+}
