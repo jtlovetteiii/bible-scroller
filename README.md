@@ -20,7 +20,7 @@ Instead of advancing slide-by-slide, the operator presses **Space** to jump betw
 | **Intelligent scrolling** | ✅ Implemented | Automatically detects when passages are too long for the viewport and scrolls progressively through them. |
 | **Sticky reference header** | ✅ Implemented | Verse reference stays visible at the top when scrolling within a passage, providing context. |
 | **Gradient fade effect** | ✅ Implemented | Text naturally fades as it scrolls toward the top, guiding eyes to new content. |
-| **Media mode** | ✅ Implemented | Toggle to display slides/images alongside Scripture. Press **M** to switch between Scripture and media presentations with smooth crossfade transitions. |
+| **Media mode** | ✅ Implemented | Toggle to display slides/images alongside Scripture. Press **M** to switch between Scripture and media presentations: the text lifts away, then the slide settles in (and the reverse on the way back). |
 | **Bookmark mode** | ✅ Implemented | Press **B** to gracefully fade content for sermon pauses (like placing a bookmark in a Bible). |
 | **Large, legible typography** | ✅ Implemented | Projection-optimized 4rem serif text with justified alignment, mimicking modern Bible apps. |
 | **Highlighting / dimming** | ✅ Implemented | Current verses at full opacity; past verses dimmed; upcoming verses subtle. |
@@ -122,7 +122,8 @@ scripture-scroller/
 | **→** | Jump down incrementally within current passage (instant, no smooth scroll - ideal for low-performance PCs) |
 | **↓** | Smooth scroll down within passage (Scripture mode) OR advance to next media slide (Media mode) |
 | **↑** | Smooth scroll up within passage (Scripture mode) OR go back to previous media slide (Media mode) |
-| **M** | Toggle between Scripture mode and Media mode (smooth crossfade transition) |
+| **M** | Toggle between Scripture mode and Media mode (sequenced "settle" transition) |
+| **Shift+M** | Same toggle, but first advance the mode you're switching *to* by one (next passage or next slide) — for sermons that alternate point → passage → point. Stays put at the end of a stack |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
 | **T** | Toggle light/dark theme |
 | **F** | Open file browser to load/manage passage files |
@@ -194,9 +195,12 @@ Edit `config.json` to customize:
 ```json
 {
   "passagesDir": "./passages",  // Path to passage files
-  "port": 3000                  // Server port
+  "port": 3000,                 // Server port
+  "host": "127.0.0.1"           // Optional; see below
 }
 ```
+
+The server listens on `127.0.0.1` (this computer only) by default. To open the app from another device, such as a tablet on the church network, set `"host": "0.0.0.0"` or start it with `HOST=0.0.0.0 npm start`. The server serves only the app's own files, `fonts/`, `passages/` and `templates/`, never the rest of the repo (which holds the email agent's credentials). Passage files can be saved without authentication, so only open it up on a network you trust.
 
 The simplicity of this approach makes it easy to use with file sync tools like OneDrive sync. For example, you could point `passagesDir` to your OneDrive folder to sync your setup between the computer where you prepare sermon outlines and the computer where you present them to an audience:
 ```json
@@ -383,8 +387,8 @@ what limits the damage — worst case on a leak is read/write of slide media.
 - **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (no build tools)
 - **Animations:**
   - One `requestAnimationFrame` scroll engine: hold-to-scroll eases in and out of reading pace and glides to a stop at passage edges; passage-to-passage transitions are eased tweens whose duration scales with distance (tunables at the top of `app.js`)
-  - CSS transitions for crossfade effects (1.2s duration)
-- **Media Support:** Full-screen image display with crossfade transitions between Scripture and Media modes
+  - Web Animations API for the Scripture/media "settle" transition (interruptible; timings at the top of the transition section in `app.js`)
+- **Media Support:** Full-screen image display, preloaded on file load; crossfades between slides (build-up slides share a background, so only the new line changes)
 - **Data Source:** JSON files loaded via REST API, auto-saved on edit, supports both Scripture-only and Scripture+Media formats
 - **Persistence:** File-based storage with configurable directory (OneDrive sync supported)
 - **Typography:** [Libron](https://github.com/nicoverbruggen/libron) (OFL, bundled in `fonts/` for offline use; Georgia fallback), 4rem size, ragged-right text

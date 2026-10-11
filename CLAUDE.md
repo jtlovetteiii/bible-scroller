@@ -88,6 +88,7 @@ This project has no frontend build system. Development workflow:
 - **↓ (Down Arrow)**: Smooth continuous scroll within current passage (hold to scroll)
 - **↑ (Up Arrow)**: Smooth continuous scroll up within current passage
 - **M**: Toggle between Scripture and Media modes
+- **Shift+M**: Advance the other mode one item (next passage / next slide), then switch to it
 - **B**: Toggle bookmark mode (blank screen)
 - **T**: Toggle light/dark theme
 - **F**: Open file browser
