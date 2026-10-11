@@ -123,6 +123,7 @@ scripture-scroller/
 | **↓** | Smooth scroll down within passage (Scripture mode) OR advance to next media slide (Media mode) |
 | **↑** | Smooth scroll up within passage (Scripture mode) OR go back to previous media slide (Media mode) |
 | **M** | Toggle between Scripture mode and Media mode (sequenced "settle" transition) |
+| **Shift+M** | Same toggle, but first advance the mode you're switching *to* by one (next passage or next slide) — for sermons that alternate point → passage → point. Stays put at the end of a stack |
 | **B** | Toggle bookmark mode (fade content for sermon pauses) |
 | **T** | Toggle light/dark theme |
 | **F** | Open file browser to load/manage passage files |

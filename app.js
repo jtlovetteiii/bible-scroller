@@ -22,6 +22,7 @@ const media = [];
 
 let currentIndex = 0;
 let currentMediaIndex = 0;
+let hasShownMedia = false; // Shift+M's first trip to media shows slide 0, not 1
 let presentationMode = 'scripture'; // scripture or media
 let isPartiallyScrolled = false; // Track if we're mid-passage
 let isBlanked = false; // Track if content is blanked (bookmark mode)
@@ -167,7 +168,9 @@ function handleKeyPress(event) {
             toggleFileBrowser();
         } else if (event.key === 'm' || event.key === 'M') {
             event.preventDefault();
-            togglePresentationMode();
+            // Shift+M: step the other stack forward first, so alternating
+            // point/passage/point is one key per change
+            togglePresentationMode(event.shiftKey);
         } else if (event.key === 'ArrowRight') {
             event.preventDefault();
             if (presentationMode === 'scripture') {
@@ -552,17 +555,26 @@ function toggleTheme() {
     }
 }
 
-// Toggle presentation mode between scripture and media
-function togglePresentationMode() {
+// Toggle presentation mode between scripture and media. With advance, the
+// stack being switched to moves on one item first (staying put at its end).
+function togglePresentationMode(advance = false) {
     if (media.length === 0) {
         // No media available, can't switch to media mode
         return;
     }
 
     if (presentationMode === 'scripture') {
+        if (advance && hasShownMedia && currentMediaIndex < media.length - 1) {
+            currentMediaIndex++;
+        }
         presentationMode = 'media';
         showMediaMode();
     } else {
+        if (advance && currentIndex < passages.length - 1) {
+            currentIndex++;
+            isPartiallyScrolled = false;
+            updateVerseStates();
+        }
         presentationMode = 'scripture';
         showScriptureMode();
     }
@@ -639,6 +651,7 @@ function showMediaMode() {
 
     mediaContainer.style.display = 'flex';
     renderCurrentMedia();
+    hasShownMedia = true;
 
     // Wait only as long as the text actually takes to clear
     const textDelay = TEXT_OUT_MS * visibleOpacity(versesContainer);
@@ -1125,6 +1138,7 @@ async function loadPassageFile(filename) {
         currentFileName = filename;
         currentIndex = 0;
         currentMediaIndex = 0;
+        hasShownMedia = false;
         isPartiallyScrolled = false;
         presentationMode = 'scripture';
 
