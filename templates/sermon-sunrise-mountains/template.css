@@ -1,0 +1,32 @@
+/* sermon-sunrise-mountains — per-template overrides for slides-template.html.
+ *
+ * The title background's upper half is sunlit sky and snow, too bright for
+ * white text, so the title and reference sit in the darker lower-right, over
+ * a tint that deepens that corner further.
+ */
+
+.title-slide .scrim {
+  background: radial-gradient(ellipse 70% 75% at 100% 100%,
+              rgba(12,16,48,0.62) 0%,
+              rgba(12,16,48,0.3) 45%,
+              transparent 75%);
+}
+
+.title-slide .content {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 96px 88px 0;
+}
+
+.title-slide .title {
+  font-size: 132px;
+  font-weight: 700;
+  text-align: right;
+  margin-bottom: 14px;
+}
+
+.title-slide .scripture-ref {
+  font-size: 54px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}

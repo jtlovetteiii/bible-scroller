@@ -15,7 +15,7 @@ Your job is narrow: **generate only the `<div class="slide">...</div>` elements*
 
 The argument provides two things:
 1. **Date** — e.g. `2026-03-01`. Used to write the output at `passages/YYYY-MM-DD/slides-preview.html`.
-2. **Template folder** — e.g. `templates/sermon-sunrise-mountains`. Contains three background images: `title.jpeg`, `main-point.jpeg`, and `sub-point.jpeg`.
+2. **Template folder** — e.g. `templates/sermon-sunrise-mountains`. Contains three background images: `title.jpeg`, `main-point.jpeg`, and `sub-point.jpeg`, and optionally a `template.css` with readability overrides for those images (e.g. moving the title off a bright sky, a tint behind it).
 
 **Before reading the outline**, list all files in `outlines/` that match the date (e.g. `outlines/2026-03-01_*.docx`) and ask the user which one to use. The pastor may have multiple variants (full outline, points only, verses only) and the right file changes week to week.
 
@@ -26,8 +26,12 @@ Read the chosen outline using: `pandoc "outlines/FILENAME.docx" -t plain`
 1. Create the folder `passages/YYYY-MM-DD/` if it does not exist.
 2. Read `templates/slides-template.html`.
 3. Replace the line `<!-- SLIDES -->` with your generated slide HTML.
-4. Write the result to `passages/YYYY-MM-DD/slides-preview.html`.
-5. Tell the user to open `http://localhost:3000/passages/YYYY-MM-DD/slides-preview.html` to review and export.
+4. Replace the line `<!-- TEMPLATE_CSS -->` with `<link rel="stylesheet" href="/TEMPLATE_FOLDER/template.css">` if the template folder has a `template.css`; otherwise delete the line.
+5. Write the result to `passages/YYYY-MM-DD/slides-preview.html`.
+6. Run the **readability pass** (below) and fix what it finds.
+7. Tell the user to open `http://localhost:3000/passages/YYYY-MM-DD/slides-preview.html` to review and export, and summarize what the readability pass changed.
+
+Every slide gets `<div class="scrim"></div>` immediately after its `.bg` image, as in the examples below. It is invisible unless the template's `template.css` styles it.
 
 Use **server-relative paths** for all background images (e.g. `/templates/sermon-sunrise-mountains/title.jpeg`), so the file works correctly when served by the Express server regardless of folder depth.
 
@@ -43,6 +47,7 @@ One per sermon. Use `title.jpeg`.
 <div class="slide-label">Slide N — Title</div>
 <div class="slide title-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/title.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="series">SERIES TITLE</div>
     <div class="divider"></div>
@@ -64,6 +69,7 @@ Used for special verses displayed in media mode rather than the scroller — typ
 <div class="slide-label">Slide N — REFERENCE (special)</div>
 <div class="slide scripture-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/main-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="verse-text">
       LINE ONE<br>
@@ -89,6 +95,7 @@ One per Roman-numeral main point. Use `main-point.jpeg`.
 <div class="slide-label">Slide N — Main Point NUMERAL</div>
 <div class="slide main-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/main-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="qualifier">QUALIFIER PHRASE,</div>
     <div class="statement">CORE STATEMENT</div>
@@ -110,6 +117,7 @@ One or more per lettered sub-point (A, B, C…) and numbered sub-sub-point (1, 2
 <div class="slide-label">Slide N — Sub-point LABEL</div>
 <div class="slide sub-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="points">
       <div class="point">POINT TEXT.</div>
@@ -126,6 +134,7 @@ One or more per lettered sub-point (A, B, C…) and numbered sub-sub-point (1, 2
 ```html
 <div class="slide sub-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content" style="align-items: center; text-align: center;">
     <div class="points">
       <div class="point">The Road of <span class="emphasis">Betrayal</span></div>
@@ -163,6 +172,7 @@ Example of a stacked group of three:
 <!-- Slide 1: point 1 visible; 2 & 3 hold space invisibly -->
 <div class="slide sub-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="points">
       <div class="point">1. Point one text.</div>
@@ -176,6 +186,7 @@ Example of a stacked group of three:
 <!-- Slide 2: points 1 & 2 visible; 3 holds space invisibly -->
 <div class="slide sub-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="points">
       <div class="point">1. Point one text.</div>
@@ -189,6 +200,7 @@ Example of a stacked group of three:
 <!-- Slide 3: all points visible -->
 <div class="slide sub-point-slide">
   <img class="bg" src="/TEMPLATE_FOLDER/sub-point.jpeg" alt="">
+  <div class="scrim"></div>
   <div class="content">
     <div class="points">
       <div class="point">1. Point one text.</div>
@@ -199,6 +211,34 @@ Example of a stacked group of three:
   <div class="section-label">SECTION NAME</div>
 </div>
 ```
+
+---
+
+## Readability pass (REQUIRED)
+
+The slides are projected in a sanctuary; text that is merely legible on a laptop can disappear on the screen. Before handing the preview to the user, check it the way the congregation will see it:
+
+```bash
+npm start   # if the server is not already running
+node scripts/check-slides.js passages/YYYY-MM-DD/slides-preview.html
+```
+
+The script renders every slide with **html2canvas — the same renderer the Export button uses** — and writes `passages/YYYY-MM-DD/.check/`: `report.txt` (unintended wraps, overflow, text off the slide), `contact-sheet.png` (all slides, numbered), and `slideN.png` (full size). It exits 1 if the report has problems.
+
+1. **Fix every problem in the report.** For a wrap, prefer a `<br>` at a phrase boundary or the long-point font override (see Sub-point slide); never drop the pastor's words.
+2. **Look at the contact sheet**, then open the full-size image of at least one slide of each type (title, main point, sub-point stack, special/statement). For each, ask:
+   - Is any text over a bright or busy part of the background (sky, snow, sun, foliage) where it loses contrast?
+   - Are the title and scripture reference large enough to read from the back of the room?
+   - Do the emphasis phrases still stand out from the surrounding text?
+   - Does the section label sit clear of the background's frame line?
+3. **Fix what you find, in the right place**, then re-run the script until the report is clean and the images read well:
+   - A problem caused by **this template's background image** (e.g. the title sits on a bright sky) → edit `TEMPLATE_FOLDER/template.css`, creating it if needed (see `templates/sermon-sunrise-mountains/template.css`). Typical fixes: reposition the title block, enlarge it, and give `.title-slide .scrim` a gradient that darkens the area behind the text. These persist for every future sermon on that template.
+   - A problem that would affect **every template** → propose a change to `templates/slides-template.html` and ask the user before making it, since it changes every background.
+   - A problem specific to **this week's wording** (one long point) → inline style on that element, as with the long-point font override.
+   - Do not put a `<style>` block into the generated preview: it is lost the next time the preview is regenerated.
+4. **html2canvas drops some CSS**: pseudo-elements (`::before`/`::after`), `filter`, `backdrop-filter`, and blend modes do not survive export. Use real elements such as `.scrim` and plain `text-shadow`/gradients, and always judge the fix from the script's images, not from the browser.
+
+Delete `passages/YYYY-MM-DD/.check/` when you are done; it is review scratch, not part of the deck.
 
 ---
 
