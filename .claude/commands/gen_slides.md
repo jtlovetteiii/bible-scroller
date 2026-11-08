@@ -29,7 +29,7 @@ Read the chosen outline using: `pandoc "outlines/FILENAME.docx" -t plain`
 4. Replace the line `<!-- TEMPLATE_CSS -->` with `<link rel="stylesheet" href="/TEMPLATE_FOLDER/template.css">` if the template folder has a `template.css`; otherwise delete the line.
 5. Write the result to `passages/YYYY-MM-DD/slides-preview.html`.
 6. Run the **readability pass** (below) and fix what it finds.
-7. Tell the user to open `http://localhost:3000/passages/YYYY-MM-DD/slides-preview.html` to review and export, and summarize what the readability pass changed.
+7. Tell the user to open `http://localhost:3000/passages/YYYY-MM-DD/slides-preview.html` to review, and summarize what the readability pass changed. When they approve ("OK, let's export them"), run the **Export** step below — do not send them to the Export button.
 
 Every slide gets `<div class="scrim"></div>` immediately after its `.bg` image, as in the examples below. It is invisible unless the template's `template.css` styles it.
 
@@ -239,6 +239,26 @@ The script renders every slide with **html2canvas — the same renderer the Expo
 4. **html2canvas drops some CSS**: pseudo-elements (`::before`/`::after`), `filter`, `backdrop-filter`, and blend modes do not survive export. Use real elements such as `.scrim` and plain `text-shadow`/gradients, and always judge the fix from the script's images, not from the browser.
 
 Delete `passages/YYYY-MM-DD/.check/` when you are done; it is review scratch, not part of the deck.
+
+---
+
+## Export (when the user says to export)
+
+When the user approves the slides — "OK, let's export them", "export", "looks good, ship it" — export them yourself:
+
+```bash
+node scripts/check-slides.js passages/YYYY-MM-DD/slides-preview.html --export
+rm -rf passages/YYYY-MM-DD/.check
+```
+
+This writes the JPEGs **directly into `passages/YYYY-MM-DD/`**, next to the preview, which is where `prep_sermon` picks them up. Nothing needs downloading or moving.
+
+- **`Slide0.jpeg` is always a solid black slide** at the deck's resolution. This is a standing rule: the sanctuary presentation sits on black, and Slide0 lets the operator cut over to this app seamlessly. The script creates it; never put content on it or drop it.
+- `Slide1.jpeg`…`SlideN.jpeg` are the sermon slides, the same size and JPEG quality as the Export button produces.
+- Older `SlideN.jpeg` files in the folder are replaced, so a re-export after edits never leaves stale slides behind.
+- The export is refused if the readability report has problems; fix them and re-run.
+
+Afterwards, confirm the count (Slide0 + N slides) and spot-check one image.
 
 ---
 

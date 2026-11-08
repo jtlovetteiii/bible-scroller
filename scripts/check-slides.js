@@ -11,6 +11,13 @@
  *   - contact-sheet.png every slide as html2canvas renders it, numbered
  *   - slideN.png        each slide at full size
  *
+ * With --export, it also writes the deck itself next to the preview, ready for
+ * prep_sermon: Slide0.jpeg (a solid black slide, so the sanctuary can sit on
+ * black and cut over to the scroller seamlessly) and Slide1..N.jpeg, all at
+ * the same resolution and JPEG quality as the Export button. Any older
+ * SlideN.jpeg files in that folder are removed first, so a shorter deck never
+ * leaves stale slides behind. Export is refused if the report has problems.
+ *
  * The images come from html2canvas, the same renderer the Export button uses,
  * so they show what the congregation will see, not what Chrome would paint.
  * html2canvas drops some CSS (e.g. filter, backdrop-filter, blend modes).
@@ -31,7 +38,7 @@ const PORT = process.env.PORT || 3000;
 
 function usage(msg) {
   if (msg) console.error(`check-slides: ${msg}`);
-  console.error('usage: node scripts/check-slides.js passages/<date>/slides-preview.html [--out dir]');
+  console.error('usage: node scripts/check-slides.js passages/<date>/slides-preview.html [--out dir] [--export]');
   process.exit(2);
 }
 
@@ -50,7 +57,7 @@ function findChrome() {
 // Runs inside the page. Waits for fonts and backgrounds, measures every text
 // element, then renders each slide with html2canvas and assembles a contact
 // sheet. Results land in <pre id="check-slides-result"> as JSON for --dump-dom.
-function inPageCheck() {
+function inPageCheck(opts) {
   const TEXT = '.title, .series, .scripture-ref, .qualifier, .statement, .verse-text, .verse-ref, .point, .section-label';
 
   function lineHeight(el) {
@@ -86,7 +93,7 @@ function inPageCheck() {
   }
 
   async function run() {
-    const out = { problems: [], slides: [], sheet: null };
+    const out = { problems: [], slides: [], jpegs: [], sheet: null };
     try {
       await document.fonts.ready;
       await Promise.all([...document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
@@ -112,6 +119,19 @@ function inPageCheck() {
           logging: false,
         });
         out.slides.push(canvas.toDataURL('image/png'));
+        if (opts.export) {
+          if (i === 0) {
+            // Slide0: solid black at the deck's resolution.
+            const black = document.createElement('canvas');
+            black.width = canvas.width;
+            black.height = canvas.height;
+            const bctx = black.getContext('2d');
+            bctx.fillStyle = '#000';
+            bctx.fillRect(0, 0, black.width, black.height);
+            out.jpegs.push(black.toDataURL('image/jpeg', 0.95));
+          }
+          out.jpegs.push(canvas.toDataURL('image/jpeg', 0.95)); // same quality as the Export button
+        }
         const x = GAP + (i % COLS) * (W + GAP);
         const y = GAP + Math.floor(i / COLS) * (H + LABEL + GAP);
         ctx.fillStyle = '#ccc';
@@ -144,6 +164,8 @@ function main() {
   const outDir = outIdx >= 0 ? path.resolve(args[outIdx + 1] || usage('--out needs a directory'))
     : path.join(path.dirname(absPreview), '.check');
 
+  const doExport = args.includes('--export');
+
   const chrome = findChrome();
   if (!chrome) usage('Chrome not found; set CHROME to its executable');
 
@@ -153,7 +175,7 @@ function main() {
   const html = fs.readFileSync(absPreview, 'utf8');
   if (!html.includes('</body>')) usage('preview has no </body>');
   const probe = path.join(path.dirname(absPreview), '_check-slides-probe.html');
-  fs.writeFileSync(probe, html.replace('</body>', `<script>(${inPageCheck})();</script>\n</body>`));
+  fs.writeFileSync(probe, html.replace('</body>', `<script>(${inPageCheck})(${JSON.stringify({ export: doExport })});</script>\n</body>`));
 
   let dom;
   try {
@@ -192,6 +214,19 @@ function main() {
   console.log(report);
   console.log(`\nContact sheet: ${path.relative(process.cwd(), path.join(outDir, 'contact-sheet.png'))}`);
   console.log(`Per-slide images: ${path.relative(process.cwd(), outDir)}/slideN.png`);
+
+  if (doExport) {
+    if (result.problems.length) {
+      console.error('\nExport refused: fix the problems above and re-run with --export.');
+      process.exit(1);
+    }
+    const deckDir = path.dirname(absPreview);
+    const stale = fs.readdirSync(deckDir).filter(f => /^Slide\d+\.jpe?g$/i.test(f));
+    stale.forEach(f => fs.unlinkSync(path.join(deckDir, f)));
+    result.jpegs.forEach((d, i) => fs.writeFileSync(path.join(deckDir, `Slide${i}.jpeg`), png(d)));
+    console.log(`\nExported Slide0.jpeg (black) + Slide1–${result.jpegs.length - 1}.jpeg to ${path.relative(process.cwd(), deckDir)}/` +
+      (stale.length ? ` (replaced ${stale.length} older SlideN.jpeg files)` : ''));
+  }
   process.exit(result.problems.length ? 1 : 0);
 }
 
