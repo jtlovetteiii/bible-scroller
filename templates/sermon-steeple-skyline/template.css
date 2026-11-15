@@ -1,0 +1,36 @@
+/* sermon-steeple-skyline — per-template overrides for slides-template.html.
+ *
+ * All three backgrounds share one photo: deep-blue sky up top, a bright
+ * sunset band at the horizon (~y 420–560), and a white steeple rising into
+ * that band on the right. Text stays vertically centered, so it overlaps
+ * the top of that band; a tint centered on the text block darkens it.
+ */
+
+/* Darken the middle of the frame where centered text sits. */
+.slide .scrim {
+  background: linear-gradient(to bottom,
+              rgba(8,14,40,0.25) 0%,
+              rgba(8,14,40,0.5) 30%,
+              rgba(8,14,40,0.55) 55%,
+              rgba(8,14,40,0.3) 75%,
+              rgba(8,14,40,0.1) 100%);
+}
+
+.title-slide .scrim {
+  background: radial-gradient(ellipse 75% 55% at 50% 50%,
+              rgba(8,14,40,0.6) 0%,
+              rgba(8,14,40,0.35) 55%,
+              transparent 90%);
+}
+
+/* ── Title ── larger, heavier, bigger reference */
+.title-slide .title {
+  font-size: 120px;
+  font-weight: 700;
+}
+
+.title-slide .scripture-ref {
+  font-size: 54px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}

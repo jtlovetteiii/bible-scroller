@@ -155,6 +155,60 @@
       text-shadow: 0 1px 5px rgba(0,0,0,0.8);
     }
 
+    /* ── Statement Slide ───────────────────────────────── */
+
+    /* The pastor's summary statements (not Scripture). Most are a two-part
+       comparison, so they are set as a smaller, softer .setup, a short
+       .rule, and a full-size .payoff, centered across the whole slide.
+       .emphasis marks the contrasting pair, one phrase in each half, so
+       the eye links them. A statement with no second half is one .payoff. */
+    .statement-slide .content {
+      align-items: center;
+      text-align: center;
+      padding: 60px 70px;
+    }
+
+    .statement-slide .verse-text {
+      font-style: italic;
+      line-height: 1.35;
+    }
+
+    .statement-slide .setup {
+      font-size: 54px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.82);
+    }
+
+    .statement-slide .rule {
+      width: 140px;
+      height: 3px;
+      margin: 30px auto 26px;
+      background: rgba(255,230,191,0.9);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+
+    .statement-slide .payoff {
+      font-size: 70px;
+    }
+
+    /* ── Image Slide ───────────────────────────────────── */
+
+    /* An illustration from the outline, shown whole on black and scaled
+       to fill the slide (up or down) without cropping or stretching. It is
+       a background-size: contain div, not an <img> with object-fit, because
+       html2canvas ignores object-fit on export. */
+    .image-slide {
+      background: #000;
+    }
+
+    .image-slide .illustration {
+      position: absolute;
+      inset: 0;
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
     /* ── Main Point Slide ──────────────────────────────── */
 
     .main-point-slide .content {

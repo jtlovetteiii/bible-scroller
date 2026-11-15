@@ -19,7 +19,13 @@ The argument provides two things:
 
 **Before reading the outline**, list all files in `outlines/` that match the date (e.g. `outlines/2026-03-01_*.docx`) and ask the user which one to use. The pastor may have multiple variants (full outline, points only, verses only) and the right file changes week to week.
 
-Read the chosen outline using: `pandoc "outlines/FILENAME.docx" -t plain`
+Read the chosen outline, extracting any images the pastor embedded in it:
+
+```bash
+node scripts/read-outline.js "outlines/FILENAME.docx" --media passages/YYYY-MM-DD/illustrations
+```
+
+This prints the outline's text in order (Word list items prefixed `• `) and writes each embedded image to `passages/YYYY-MM-DD/illustrations/illustrationN.ext`, printing an `[IMAGE N] illustrations/illustrationN.jpeg  WxH  "alt text"` line exactly where the image sits in the outline. No pandoc needed. Keep images in the `illustrations/` subfolder: `prep_sermon` treats every image directly in `passages/YYYY-MM-DD/` as a deck slide.
 
 ## Output
 
@@ -157,6 +163,56 @@ Example:
 <div class="point">Our Final Destination is reached through a <span class="emphasis">Spiritual Renewal</span>.</div>
 ```
 
+### 5. Statement slide
+
+The pastor's own summary sentences that sit between points in the outline (not Scripture, not a point). Use `main-point.jpeg`.
+
+Most statements are a two-part comparison or cause-and-effect — "A complaining spirit feeds upon… / A praising spirit feeds upon…", "The more we grow… / the more reasons we discover…". Lay them out so the eye sees that shape:
+
+- **`.setup`**: the first half, set smaller and softer.
+- **`.rule`**: a short line between the halves.
+- **`.payoff`**: the second half, the point the pastor is landing — full size and brightness.
+- **`.emphasis` on the contrasting pair**: one word or phrase in the setup and its counterpart in the payoff (e.g. *made for* / *living for*, *the past* / *hope for the future*). Exactly one pair; emphasizing more dilutes it.
+
+Break each half into 1–2 lines at phrase boundaries with `<br>`. Split where the sentence turns (usually a period, or the comma before "the more…", "so that…"). A statement with no natural second half is a single `.payoff` with no `.setup` or `.rule`. All styling is in `slides-template.html`; do not add inline sizes.
+
+```html
+<div class="slide-label">Slide N — Statement (Sub-point III.C)</div>
+<div class="slide scripture-slide statement-slide">
+  <img class="bg" src="/TEMPLATE_FOLDER/main-point.jpeg" alt="">
+  <div class="scrim"></div>
+  <div class="content">
+    <div class="verse-text">
+      <div class="setup">
+        A label tells people<br>
+        what something was <span class="emphasis">made for</span>.
+      </div>
+      <div class="rule"></div>
+      <div class="payoff">
+        Our lives ought to show people<br>
+        whom we are <span class="emphasis">living for</span>.
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### 6. Image slide (illustration)
+
+One per `[IMAGE N]` line from `read-outline.js`, placed where the image sits in the outline (images before the title are an opening illustration, so they come before the title slide). The image is shown whole on black, scaled to fill the slide. Use a background-image div, not an `<img>`: html2canvas ignores `object-fit` on export.
+
+```html
+<div class="slide-label">Slide N — Illustration — SHORT DESCRIPTION</div>
+<div class="slide image-slide">
+  <div class="illustration" style="background-image: url('/passages/YYYY-MM-DD/illustrations/illustrationN.jpeg')"></div>
+</div>
+```
+
+**Look at every extracted image** before using it:
+- **Sideways or upside down** (text reading vertically, as phone photos often are): rotate the extracted file, e.g. `sips -r 90 passages/YYYY-MM-DD/illustrations/illustration2.jpeg` (clockwise; `-r 270` for counter-clockwise), and look again.
+- **Low resolution** (under ~1000px wide): it will look soft on the projector. Use it, but tell the user so they can swap in a better copy at the same path.
+- Tell the user what each image is and where you put it.
+
 ---
 
 ## Stacking (ALWAYS ASK)
@@ -226,7 +282,7 @@ node scripts/check-slides.js passages/YYYY-MM-DD/slides-preview.html
 The script renders every slide with **html2canvas — the same renderer the Export button uses** — and writes `passages/YYYY-MM-DD/.check/`: `report.txt` (unintended wraps, overflow, text off the slide), `contact-sheet.png` (all slides, numbered), and `slideN.png` (full size). It exits 1 if the report has problems.
 
 1. **Fix every problem in the report.** For a wrap, prefer a `<br>` at a phrase boundary or the long-point font override (see Sub-point slide); never drop the pastor's words.
-2. **Look at the contact sheet**, then open the full-size image of at least one slide of each type (title, main point, sub-point stack, special/statement). For each, ask:
+2. **Look at the contact sheet**, then open the full-size image of at least one slide of each type (title, main point, sub-point stack, statement, illustration). For each, ask:
    - Is any text over a bright or busy part of the background (sky, snow, sun, foliage) where it loses contrast?
    - Are the title and scripture reference large enough to read from the back of the room?
    - Do the emphasis phrases still stand out from the surrounding text?
@@ -266,5 +322,5 @@ Afterwards, confirm the count (Slide0 + N slides) and spot-check one image.
 
 - Use an en dash (–) not a hyphen (-) in scripture ranges (e.g. "5:1–9").
 - Do not strip or alter the pastor's wording. You may trim redundant lead-ins (e.g. "As a New Creation,") when it makes a sub-point slide more readable, but note any changes.
-- Special or complex slides (custom images, Greek vocabulary, quotes) are outside this skill's scope. Leave a placeholder comment `<!-- MANUAL SLIDE: description -->` where one would go and tell the user.
+- Other special or complex slides (images that are *not* in the outline, Greek vocabulary, quotes) are outside this skill's scope. Leave a placeholder comment `<!-- MANUAL SLIDE: description -->` where one would go and tell the user.
 - Number slides sequentially from 1.

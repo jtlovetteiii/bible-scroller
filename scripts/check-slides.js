@@ -58,7 +58,10 @@ function findChrome() {
 // element, then renders each slide with html2canvas and assembles a contact
 // sheet. Results land in <pre id="check-slides-result"> as JSON for --dump-dom.
 function inPageCheck(opts) {
-  const TEXT = '.title, .series, .scripture-ref, .qualifier, .statement, .verse-text, .verse-ref, .point, .section-label';
+  const TEXT = '.title, .series, .scripture-ref, .qualifier, .statement, .verse-text, .setup, .payoff, .verse-ref, .point, .section-label';
+  // A statement split into .setup / .payoff is measured block by block; the
+  // wrapper's height (two font sizes plus the rule) is not a line count.
+  const isSplit = el => el.querySelector(':scope > .setup, :scope > .payoff');
 
   function lineHeight(el) {
     const cs = getComputedStyle(el);
@@ -76,7 +79,7 @@ function inPageCheck(opts) {
         const short = text.length > 50 ? text.slice(0, 50) + '…' : text;
         const intended = el.querySelectorAll('br').length + 1;
         const lines = Math.round(el.getBoundingClientRect().height / lineHeight(el));
-        if (lines > intended) {
+        if (lines > intended && !isSplit(el)) {
           problems.push(`Slide ${n}: "${short}" wraps to ${lines} lines (expected ${intended}) — shorten, add a <br>, or shrink it`);
         }
         const r = el.getBoundingClientRect();
@@ -99,6 +102,20 @@ function inPageCheck(opts) {
       await Promise.all([...document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
       const slides = [...document.querySelectorAll('.slide')];
       out.problems = measure(slides);
+      // Illustrations are CSS backgrounds (html2canvas ignores object-fit), so
+      // document.images does not cover them; a bad path would export as black.
+      await Promise.all(slides.map((slide, i) => {
+        const el = slide.querySelector('.illustration');
+        const url = el && (getComputedStyle(el).backgroundImage.match(/url\("?(.*?)"?\)/) || [])[1];
+        if (!el) return null;
+        if (!url) { out.problems.push(`Slide ${i + 1}: illustration has no background-image`); return null; }
+        return new Promise(r => {
+          const img = new Image();
+          img.onload = r;
+          img.onerror = () => { out.problems.push(`Slide ${i + 1}: illustration did not load (${url})`); r(); };
+          img.src = url;
+        });
+      }));
 
       const W = 728, H = 408, COLS = 4, GAP = 8, LABEL = 28;
       const rows = Math.ceil(slides.length / COLS);
